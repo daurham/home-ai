@@ -3,11 +3,21 @@ import axios from "axios";
 import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import { initDatabase, query } from "./db.js";
+import modulesRouter from "./routes/modules.js";
+import moduleInstancesRouter from "./routes/moduleInstances.js";
+import moduleDataRouter from "./routes/moduleData.js";
+import calendarRouter from "./routes/calendar.js";
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+// Initialize database connection
+initDatabase().catch(err => {
+  console.error('Failed to initialize database:', err);
+});
 
 // Available models
 const LLM = {
@@ -26,7 +36,7 @@ const API_KEY = process.env.API_KEY;
 const NUTRITION_MODEL = LLM.llama3_2_vision;
 const HOME_ASSISTANT_MODEL = LLM.llama3_2_vision;
 const GENERIC_MODEL = LLM.llama3_2_vision;
-const OLLAMA_URL = "http://home-ai-ollama:11434/api/generate";
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://home-ai-ollama:11434/api/generate";
 
 // Middleware for authentication
 function authenticate(req, res, next) {
@@ -159,6 +169,39 @@ app.post("/api/ai/stream", authenticate, async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
+// Database API routes (no authentication required for internal use)
+app.use("/api/modules", modulesRouter);
+app.use("/api/module-instances", moduleInstancesRouter);
+app.use("/api/module-data", moduleDataRouter);
+app.use("/api/calendar", calendarRouter);
+
+// Health check endpoint (includes database check)
+app.get("/api/health", async (req, res) => {
+  try {
+    // Test database connection
+    await query('SELECT 1');
+    res.json({ 
+      status: "healthy", 
+      database: "connected",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({ 
+      status: "unhealthy", 
+      database: "disconnected",
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+app.listen(3000, async () => {
   console.log("Ollama API server running on http://localhost:3000");
+  // Initialize database on startup
+  const dbConnected = await initDatabase();
+  if (dbConnected) {
+    console.log("✅ Database ready");
+  } else {
+    console.log("⚠️  Database connection failed - some features may not work");
+  }
 });
