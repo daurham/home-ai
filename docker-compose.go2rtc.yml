@@ -1,0 +1,18 @@
+# Isolated LAN camera restream. Independent of home-ai-api.service / dashboard.
+# Start: docker compose -f docker-compose.go2rtc.yml up -d
+# This file is NOT included by the main docker-compose.yml.
+name: home-ai-go2rtc
+
+services:
+  go2rtc:
+    image: alexxit/go2rtc:1.9.14
+    container_name: home-ai-go2rtc
+    network_mode: host
+    restart: unless-stopped
+    env_file:
+      - ./go2rtc/.env
+    environment:
+      TZ: America/Phoenix
+    volumes:
+      - ./go2rtc/go2rtc.yaml:/config/go2rtc.yaml:ro
+    # No privileged, no extra WAN ports, no dashboard/nginx coupling.

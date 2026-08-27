@@ -55,11 +55,14 @@ A Docker-based Home AI API server that provides intelligent responses using Olla
 Test your API with the provided scripts:
 
 ```bash
+# Copy the example scripts and fill in your API key first:
+#   cp scripts/example.test_api.sh scripts/test_api.sh
+
 # Test all endpoints
-./test_api.sh
+./scripts/test_api.sh
 
 # Or use Python script
-python3 test_api.py
+python3 scripts/test_api.py
 ```
 
 ## 🔧 Management Commands
@@ -74,25 +77,25 @@ python3 test_api.py
 **Advanced development commands:**
 ```bash
 # Rebuild with latest code changes
-./dev.sh rebuild
+./scripts/dev.sh rebuild
 
 # Just restart containers
-./dev.sh restart
+./scripts/dev.sh restart
 
 # Watch live logs
-./dev.sh logs
+./scripts/dev.sh logs
 
 # Run all tests
-./dev.sh test
+./scripts/dev.sh test
 
 # Check service status
-./dev.sh status
+./scripts/dev.sh status
 
 # Clean up Docker resources
-./dev.sh clean
+./scripts/dev.sh clean
 
 # Show help
-./dev.sh help
+./scripts/dev.sh help
 ```
 
 ### Docker Compose Management
@@ -393,8 +396,11 @@ sudo systemctl restart home-ai-api.service
 home-ai/
 ├── docker-compose.yml          # Docker Compose configuration
 ├── home-ai-api.service         # Systemd service file
-├── test_api.sh                 # Bash test script
-├── test_api.py                 # Python test script
+├── rebuild.sh                  # Prod rebuild (keep in root)
+├── scripts/                    # Tests and helper scripts
+│   ├── dev.sh
+│   ├── check-ports.sh
+│   └── example.test_api.sh
 ├── README.md                   # This file
 └── node-api/
     ├── server.js               # Main API server
@@ -427,7 +433,7 @@ To verify auto-start is working:
 
 3. **Test the API:**
    ```bash
-   ./test_api.sh
+   ./scripts/test_api.sh
    ```
 
 ## 📞 Support
@@ -436,7 +442,7 @@ If you encounter issues:
 
 1. Check the logs: `sudo docker compose logs -f`
 2. Verify services are running: `sudo docker compose ps`
-3. Test API connectivity: `./test_api.sh`
+3. Test API connectivity: `./scripts/test_api.sh`
 4. Restart if needed: `sudo systemctl restart home-ai-api.service`
 
 ---

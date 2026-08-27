@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # Development script for Home AI project
-# Usage: ./dev.sh [command]
+# Usage: ./scripts/dev.sh [command]
 # Commands: rebuild, restart, logs, test, status, clean
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+SCRIPTS="$ROOT/scripts"
 
 case "${1:-rebuild}" in
   "rebuild")
@@ -50,10 +54,10 @@ case "${1:-rebuild}" in
     # Test the API
     echo "🧪 Testing the API..."
     echo "===================="
-    if [ -f "./test_api.sh" ]; then
-      ./test_api.sh
+    if [ -f "$SCRIPTS/test_api.sh" ]; then
+      "$SCRIPTS/test_api.sh"
     else
-      echo "  ⚠️  test_api.sh not found, skipping API test"
+      echo "  ⚠️  scripts/test_api.sh not found, skipping API test"
     fi
     
     echo ""
@@ -89,11 +93,19 @@ case "${1:-rebuild}" in
   "test")
     echo "🧪 Testing Home AI API..."
     echo "========================="
-    ./test_api.sh
+    if [ -f "$SCRIPTS/test_api.sh" ]; then
+      "$SCRIPTS/test_api.sh"
+    else
+      echo "  ⚠️  scripts/test_api.sh not found (copy scripts/example.test_api.sh)"
+    fi
     echo ""
     echo "🧪 Testing Streaming API..."
     echo "==========================="
-    ./test_stream.sh
+    if [ -f "$SCRIPTS/test_stream.sh" ]; then
+      "$SCRIPTS/test_stream.sh"
+    else
+      echo "  ⚠️  scripts/test_stream.sh not found (copy scripts/example.test_stream.sh)"
+    fi
     ;;
     
   "status")
@@ -162,7 +174,7 @@ case "${1:-rebuild}" in
     echo "🛠️  Home AI Development Script"
     echo "=============================="
     echo ""
-    echo "Usage: ./dev.sh [command]"
+    echo "Usage: ./scripts/dev.sh [command]"
     echo ""
     echo "Commands:"
     echo "  rebuild [service]  - Rebuild containers with latest code and restart (default)"
@@ -174,18 +186,18 @@ case "${1:-rebuild}" in
     echo "  help               - Show this help message"
     echo ""
     echo "Examples:"
-    echo "  ./dev.sh                # Rebuild and restart (default)"
-    echo "  ./dev.sh restart        # Just restart containers"
-    echo "  ./dev.sh logs           # Watch all logs"
-    echo "  ./dev.sh logs dashboard # Watch dashboard logs only"
-    echo "  ./dev.sh logs postgres  # Watch database logs only"
-    echo "  ./dev.sh test           # Run tests"
-    echo "  ./dev.sh status         # Check service status"
+    echo "  ./scripts/dev.sh                # Rebuild and restart (default)"
+    echo "  ./scripts/dev.sh restart        # Just restart containers"
+    echo "  ./scripts/dev.sh logs           # Watch all logs"
+    echo "  ./scripts/dev.sh logs dashboard # Watch dashboard logs only"
+    echo "  ./scripts/dev.sh logs postgres  # Watch database logs only"
+    echo "  ./scripts/dev.sh test           # Run tests"
+    echo "  ./scripts/dev.sh status         # Check service status"
     ;;
     
   *)
     echo "❌ Unknown command: $1"
-    echo "Run './dev.sh help' for available commands"
+    echo "Run './scripts/dev.sh help' for available commands"
     exit 1
     ;;
 esac

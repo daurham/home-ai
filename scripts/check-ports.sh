@@ -10,6 +10,7 @@ PORTS=(
   "80:nginx"
   "3000:node-api"
   "5433:postgres"
+  "8080:dashboard"
   "11434:ollama"
 )
 

@@ -70,6 +70,9 @@ web_modules/
 .env.*
 !.env.example
 
+# go2rtc restream binaries (downloaded locally, not source)
+go2rtc/bin/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -138,7 +141,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# test_api.sh
+# Local filled-in copies of scripts/example.test_* (any directory)
 test_api.sh
 test_api.py
 test_api.js

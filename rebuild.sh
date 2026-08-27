@@ -5,6 +5,10 @@
 
 set -e  # Exit on error
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+SCRIPTS="$ROOT/scripts"
+
 echo "🔄 Rebuilding Home AI Docker Stack..."
 echo "====================================="
 
@@ -16,9 +20,9 @@ sudo docker compose down
 sleep 2
 
 # Check for port conflicts (after stopping our containers)
-if [ -f "./check-ports.sh" ] && [ "${SKIP_PORT_CHECK:-}" != "1" ]; then
+if [ -f "$SCRIPTS/check-ports.sh" ] && [ "${SKIP_PORT_CHECK:-}" != "1" ]; then
   echo "🔍 Checking for port conflicts..."
-  ./check-ports.sh || {
+  "$SCRIPTS/check-ports.sh" || {
     echo ""
     echo "⚠️  Port conflicts detected from external services."
     echo "   These are NOT from the home-ai stack."
@@ -97,10 +101,10 @@ fi
 echo ""
 echo "🧪 Testing the API..."
 echo "===================="
-if [ -f "./test_api.sh" ]; then
-  ./test_api.sh
+if [ -f "$SCRIPTS/test_api.sh" ]; then
+  "$SCRIPTS/test_api.sh"
 else
-  echo "  ⚠️  test_api.sh not found, skipping API test"
+  echo "  ⚠️  scripts/test_api.sh not found, skipping API test"
 fi
 
 # Test API health endpoint (includes database check)

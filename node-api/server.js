@@ -24,6 +24,7 @@ const LLM = {
   llama3: "llama3",
   llama3_2_vision: "llama3.2-vision:11b",
   mistral: "mistral",
+  uncensored: "dolphin-mixtral:8x7b",
 
   mistral_vision: "mistral-vision:7b", // not pulled
   qwen: "qwen2.5-coder:14b", // not pulled
@@ -36,6 +37,7 @@ const API_KEY = process.env.API_KEY;
 const NUTRITION_MODEL = LLM.llama3_2_vision;
 const HOME_ASSISTANT_MODEL = LLM.llama3_2_vision;
 const GENERIC_MODEL = LLM.llama3_2_vision;
+const UNCENSORED_MODEL = LLM.uncensored;
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://home-ai-ollama:11434/api/generate";
 
 // Middleware for authentication
@@ -110,13 +112,30 @@ app.post("/api/ai", authenticate, async (req, res) => {
 
 // Generic Stream endpoint
 app.post("/api/ai/stream", authenticate, async (req, res) => {
-  const { query, system_prompt = "", character_name = "" } = req.body;
+  const { query, system_prompt = "", character_name = "", conversation_history = [] } = req.body;
 
-  const prompt = `
-  ${system_prompt}
-  ${character_name}
-  ${query}
-  `;
+  // Build conversation context from history
+  let conversationContext = "";
+  if (conversation_history && conversation_history.length > 0) {
+    conversationContext = "\n\nPrevious conversation:\n";
+    conversation_history.forEach(msg => {
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
+      conversationContext += `${role}: ${msg.content}\n`;
+    });
+  }
+
+  // Construct the full prompt with context
+  let prompt = "";
+  if (system_prompt) {
+    prompt += `${system_prompt}\n`;
+  }
+  if (character_name) {
+    prompt += `You are ${character_name}.\n`;
+  }
+  if (conversationContext) {
+    prompt += conversationContext;
+  }
+  prompt += `\nUser: ${query}\nAssistant:`;
 
   try {
     // Set headers for streaming response
@@ -125,7 +144,7 @@ app.post("/api/ai/stream", authenticate, async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     
     const response = await axios.post(OLLAMA_URL, {
-      model: GENERIC_MODEL,
+      model: UNCENSORED_MODEL,
       prompt: prompt,
       stream: true
     }, {
