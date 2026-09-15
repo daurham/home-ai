@@ -36,6 +36,8 @@ services:
       - ./node-api/.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-homeai}:${POSTGRES_PASSWORD:-homeai_password}@home-ai-postgres:5432/${POSTGRES_DB:-homeai}
+      # Compose DNS — overrides a localhost OLLAMA_URL from .env (that would miss the ollama container).
+      - OLLAMA_URL=http://home-ai-ollama:11434/api/generate
     depends_on:
       postgres:
         condition: service_healthy
