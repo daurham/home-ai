@@ -9,6 +9,7 @@ A Docker-based Home AI API server that provides intelligent responses using Olla
 - **Generic AI** - Uses Llama3 for general AI conversations
 - **Auto-start** - Automatically starts on system boot
 - **Docker-based** - Fully containerized with Docker Compose
+- **Latency Sparklines** - Background probes of allowlisted services (`GET /api/latency/snapshot`). See `docs/latency-sparklines-setup.md`.
 - **API Key Authentication** - Secure access with API key
 
 ## 📋 Prerequisites

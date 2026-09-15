@@ -4,7 +4,7 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "test": "node --test lib/*.test.js",
+    "test": "node --test lib/*.test.js lib/latency/*.test.js",
     "start": "node server.js"
   },
   "keywords": [],
