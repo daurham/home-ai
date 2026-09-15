@@ -1,4 +1,4 @@
-import configuredTargets from '../../latency-targets.js';
+import getConfiguredTargets from '../../latency-targets.js';
 import { createRingBuffer } from './ringBuffer.js';
 import { deriveStatus } from './status.js';
 import { loadTargets } from './targets.js';
@@ -123,9 +123,14 @@ export async function forceLatencyCheck(id) {
 
 export function startLatencyScheduler() {
   if (tickTimer) return;
-  const { targets } = loadTargets(configuredTargets);
+  const raw = typeof getConfiguredTargets === 'function' ? getConfiguredTargets() : getConfiguredTargets;
+  const { targets } = loadTargets(raw);
   states = targets.map(createState);
+  const ollama = states.find((s) => s.target.type === 'ollama');
   console.log(`[latency] scheduler started with ${states.length} target(s), concurrency ${DEFAULT_CONCURRENCY}`);
+  if (ollama) {
+    console.log(`[latency] ollama probe ${ollama.target.url}`);
+  }
   void tick();
   tickTimer = setInterval(() => {
     void tick();

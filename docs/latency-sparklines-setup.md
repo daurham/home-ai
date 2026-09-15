@@ -151,7 +151,7 @@ Ollama serves HTTP on port **11434** by default.
 
 Optional stricter check: `expectBodyIncludes: 'Ollama is running'` for the `/` probe.
 
-If node-api runs in Docker Compose, prefer the service hostname (`http://home-ai-ollama:11434/`). The default target derives the base URL from `OLLAMA_URL` (path stripped).
+If node-api runs in Docker Compose, the seeded target uses `http://home-ai-ollama:11434/` (Compose DNS). Do **not** use `127.0.0.1` there — that is the node-api container itself and the card will show connection refused. The probe also strips `/api/generate` from `OLLAMA_URL` so health never hits the expensive path.
 
 ## PostgreSQL
 
