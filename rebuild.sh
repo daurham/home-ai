@@ -76,10 +76,10 @@ sudo docker compose ps
 
 # Verify all critical services are up
 echo "🔍 Verifying services..."
-SERVICES=("postgres" "ollama" "node-api" "dashboard" "nginx")
+SERVICES="postgres ollama node-api dashboard nginx"
 ALL_UP=true
 
-for service in "${SERVICES[@]}"; do
+for service in $SERVICES; do
   if sudo docker compose ps | grep -q "$service.*Up"; then
     echo "  ✅ $service is running"
   else
