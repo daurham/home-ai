@@ -8,6 +8,8 @@ import modulesRouter from "./routes/modules.js";
 import moduleInstancesRouter from "./routes/moduleInstances.js";
 import moduleDataRouter from "./routes/moduleData.js";
 import calendarRouter from "./routes/calendar.js";
+import expensesRouter from "./routes/expenses.js";
+import expenseCategoriesRouter from "./routes/expenseCategories.js";
 dotenv.config();
 
 const app = express();
@@ -193,6 +195,8 @@ app.use("/api/modules", modulesRouter);
 app.use("/api/module-instances", moduleInstancesRouter);
 app.use("/api/module-data", moduleDataRouter);
 app.use("/api/calendar", calendarRouter);
+app.use("/api/expense-categories", expenseCategoriesRouter);
+app.use("/api/expenses", expensesRouter);
 
 // Health check endpoint (includes database check)
 app.get("/api/health", async (req, res) => {

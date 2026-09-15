@@ -133,6 +133,12 @@ The dashboard is configured with `base: "/dashboard/"` in `vite.config.ts`. When
 
 **You need the same database schema.** The schema is defined in `postgres/init.sql`. If using a local database, run this script to initialize it.
 
+Existing databases also need the expenses tables (init.sql only runs on a fresh volume):
+
+```bash
+psql "$DATABASE_URL" -f postgres/migrate_expenses.sql
+```
+
 ### CORS
 
 The node-api already has CORS enabled (`app.use(cors())`), so connecting from a different origin (your dev machine) works fine.
