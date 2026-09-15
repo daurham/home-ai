@@ -10,6 +10,7 @@ import moduleDataRouter from "./routes/moduleData.js";
 import calendarRouter from "./routes/calendar.js";
 import expensesRouter from "./routes/expenses.js";
 import expenseCategoriesRouter from "./routes/expenseCategories.js";
+import expenseSettingsRouter from "./routes/expenseSettings.js";
 import latencyRouter from "./routes/latency.js";
 import { startLatencyScheduler } from "./lib/latency/index.js";
 dotenv.config();
@@ -198,6 +199,7 @@ app.use("/api/module-instances", moduleInstancesRouter);
 app.use("/api/module-data", moduleDataRouter);
 app.use("/api/calendar", calendarRouter);
 app.use("/api/expense-categories", expenseCategoriesRouter);
+app.use("/api/expense-settings", expenseSettingsRouter);
 app.use("/api/expenses", expensesRouter);
 app.use("/api/latency", latencyRouter);
 

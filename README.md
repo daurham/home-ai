@@ -186,7 +186,7 @@ sudo docker exec home-ai-ollama ollama rm <model-name>
 
 ### Base URL
 - **Local:** `http://localhost:3000`
-- **Network:** `http://192.168.0.13:3000` (replace with your IP)
+- **Network:** `http://192.168.1.161:3000` (replace with your IP)
 
 ### Authentication
 All endpoints require an API key in the `x-api-key` header.

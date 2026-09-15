@@ -21,7 +21,7 @@ You have two choices:
 **A. Use Remote PostgreSQL (Easier - Recommended)**
 - Connect to the PostgreSQL on your home-ai server (port 5433)
 - Same data, shared across devices
-- Connection string: `postgresql://homeai:homeai_password@192.168.0.13:5433/homeai`
+- Connection string: `postgresql://homeai:homeai_password@192.168.1.161:5433/homeai`
 
 **B. Use Local PostgreSQL**
 - Install PostgreSQL locally
@@ -35,7 +35,7 @@ You have two choices:
 2. Update database connection:
    ```bash
    # For remote PostgreSQL (recommended)
-   DATABASE_URL=postgresql://homeai:homeai_password@192.168.0.13:5433/homeai
+   DATABASE_URL=postgresql://homeai:homeai_password@192.168.1.161:5433/homeai
    
    # For local PostgreSQL
    # DATABASE_URL=postgresql://homeai:homeai_password@localhost:5432/homeai
@@ -46,7 +46,7 @@ You have two choices:
    ```
 4. Set Ollama URL (optional - only needed if testing AI endpoints):
    ```bash
-   OLLAMA_URL=http://192.168.0.13:11434/api/generate
+   OLLAMA_URL=http://192.168.1.161:11434/api/generate
    ```
 
 #### Step 3: Run node-api locally
@@ -86,9 +86,9 @@ Run only the dashboard locally, connecting to the remote API on your home-ai ser
 1. Create `home-dashboard/.env.local` file:
    ```bash
    cd home-dashboard
-   echo "VITE_API_BASE_URL=http://192.168.0.13/api" > .env.local
+   echo "VITE_API_BASE_URL=http://192.168.1.161/api" > .env.local
    ```
-   (Replace `192.168.0.13` with your server's IP)
+   (Replace `192.168.1.161` with your server's IP)
 
 #### Step 2: Run dashboard
 
@@ -119,7 +119,7 @@ So for dashboard development, you don't need to worry about API keys!
 The node-api has AI endpoints that require Ollama, but **for dashboard development (modules, calendar, lists, budget), you don't need Ollama running**. The database operations work independently.
 
 If you want to test AI endpoints locally:
-- Set `OLLAMA_URL` in `node-api/.env` to point to your remote Ollama: `http://192.168.0.13:11434/api/generate`
+- Set `OLLAMA_URL` in `node-api/.env` to point to your remote Ollama: `http://192.168.1.161:11434/api/generate`
 - Or install Ollama locally and use: `http://localhost:11434/api/generate`
 
 ### Vite Base Path
@@ -137,7 +137,10 @@ Existing databases also need the expenses tables (init.sql only runs on a fresh 
 
 ```bash
 psql "$DATABASE_URL" -f postgres/migrate_expenses.sql
+psql "$DATABASE_URL" -f postgres/migrate_expense_budget.sql
 ```
+
+The household weekly budget lives in `expense_settings` (singleton, default `$150.00`). Change it with `PATCH /api/expense-settings` (`weekly_budget` dollars or `weekly_budget_cents`).
 
 ### CORS
 
@@ -175,7 +178,7 @@ If you get CORS errors when connecting to remote API:
 - Verify PostgreSQL is running and accessible
 - Check connection string format
 - Ensure firewall allows connections (if using remote DB)
-- Test connection: `psql -h 192.168.0.13 -p 5433 -U homeai -d homeai`
+- Test connection: `psql -h 192.168.1.161 -p 5433 -U homeai -d homeai`
 
 ### API Not Found
 

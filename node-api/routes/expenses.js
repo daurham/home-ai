@@ -16,6 +16,7 @@ import {
   validateOccurredOn,
   validatePaidBy,
 } from '../lib/expenseValidation.js';
+import { getExpenseSettings } from '../lib/expenseSettings.js';
 
 const router = express.Router();
 
@@ -187,6 +188,9 @@ router.get('/summary', async (req, res) => {
     );
 
     const selectedTotal = categoryRows.rows.reduce((sum, row) => sum + row.total_cents, 0);
+    const settings = await getExpenseSettings();
+    const weeklyBudgetCents = settings.weekly_budget_cents;
+    const remainingCents = grain === 'week' ? weeklyBudgetCents - selectedTotal : null;
 
     res.json({
       grain,
@@ -197,6 +201,8 @@ router.get('/summary', async (req, res) => {
         ? { weekKey: selectedWeekKey, ...selectedRange }
         : { month: selectedMonth, ...selectedRange },
       selected_period_total_cents: selectedTotal,
+      weekly_budget_cents: weeklyBudgetCents,
+      remaining_cents: remainingCents,
       periods,
       categories: categoryRows.rows,
     });

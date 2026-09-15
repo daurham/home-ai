@@ -58,3 +58,19 @@ WHERE NOT EXISTS (
     SELECT 1 FROM expense_categories c
     WHERE lower(c.name) = lower(v.name) AND c.archived_at IS NULL
 );
+
+-- Household weekly budget (singleton; default $150). See also migrate_expense_budget.sql.
+CREATE TABLE IF NOT EXISTS expense_settings (
+    id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    weekly_budget_cents INT NOT NULL DEFAULT 15000 CHECK (weekly_budget_cents > 0),
+    currency CHAR(3) NOT NULL DEFAULT 'USD',
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO expense_settings (id, weekly_budget_cents, currency)
+VALUES (1, 15000, 'USD')
+ON CONFLICT (id) DO NOTHING;
+
+DROP TRIGGER IF EXISTS update_expense_settings_updated_at ON expense_settings;
+CREATE TRIGGER update_expense_settings_updated_at BEFORE UPDATE ON expense_settings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
