@@ -123,14 +123,10 @@ CREATE TRIGGER update_expenses_updated_at BEFORE UPDATE ON expenses
 INSERT INTO expense_categories (name, color, sort_order)
 SELECT v.name, v.color, v.sort_order
 FROM (VALUES
-    ('Groceries', '#8A9A7B', 1),
-    ('Dining',    '#C4A484', 2),
-    ('Transport', '#7A92A8', 3),
-    ('Home',      '#B5A394', 4),
-    ('Health',    '#6F9E8F', 5),
-    ('Fun',       '#9B8AA8', 6),
-    ('Shopping',  '#B08999', 7),
-    ('Other',     '#8E8B86', 8)
+    ('Groceries',     '#8A9A7B', 1),
+    ('Travel',        '#7A92A8', 2),
+    ('Entertainment', '#9B8AA8', 3),
+    ('Home',          '#B5A394', 4)
 ) AS v(name, color, sort_order)
 WHERE NOT EXISTS (
     SELECT 1 FROM expense_categories c
