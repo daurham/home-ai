@@ -21,7 +21,7 @@ The guard identifies tunnel traffic by the `CF-Ray` header, which Cloudflare alw
 /api/health        GET    open (the latency probe polls it and cannot send headers)
 ```
 
-Everything else — expenses, expense categories, expense settings, calendar, modules, module instances, module data, latency targets — is blocked at the edge and, if the edge rule is ever missing, rejected by the guard with `403 {"error":"Forbidden: API key required for external access"}`.
+Everything else — expenses, expense categories, expense settings, calendar, chores, habits, modules, module instances, module data, latency targets — is blocked at the edge and, if the edge rule is ever missing, rejected by the guard with `403 {"error":"Forbidden: API key required for external access"}`.
 
 The guard fails closed: if `API_KEY` is unset in `node-api/.env`, every external request is rejected, and node-api logs a warning at startup.
 

@@ -12,6 +12,8 @@ import expensesRouter from "./routes/expenses.js";
 import expenseCategoriesRouter from "./routes/expenseCategories.js";
 import expenseSettingsRouter from "./routes/expenseSettings.js";
 import latencyRouter from "./routes/latency.js";
+import choresRouter from "./routes/chores.js";
+import habitsRouter from "./routes/habits.js";
 import { startLatencyScheduler } from "./lib/latency/index.js";
 import { createTunnelGuard } from "./lib/externalAccess.js";
 dotenv.config();
@@ -211,6 +213,8 @@ app.use("/api/expense-categories", expenseCategoriesRouter);
 app.use("/api/expense-settings", expenseSettingsRouter);
 app.use("/api/expenses", expensesRouter);
 app.use("/api/latency", latencyRouter);
+app.use("/api/chores", choresRouter);
+app.use("/api/habits", habitsRouter);
 
 // Health check endpoint (includes database check)
 app.get("/api/health", async (req, res) => {
