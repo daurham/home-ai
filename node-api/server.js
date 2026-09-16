@@ -14,6 +14,7 @@ import expenseSettingsRouter from "./routes/expenseSettings.js";
 import latencyRouter from "./routes/latency.js";
 import choresRouter from "./routes/chores.js";
 import habitsRouter from "./routes/habits.js";
+import filesRouter from "./routes/files.js";
 import { startLatencyScheduler } from "./lib/latency/index.js";
 import { createTunnelGuard } from "./lib/externalAccess.js";
 import { buildHomeAssistantPrompt, pipeOllamaStream } from "./lib/homeAssistant.js";
@@ -239,6 +240,7 @@ app.use("/api/expenses", expensesRouter);
 app.use("/api/latency", latencyRouter);
 app.use("/api/chores", choresRouter);
 app.use("/api/habits", habitsRouter);
+app.use("/api/files", filesRouter);
 
 // Health check endpoint (includes database check)
 app.get("/api/health", async (req, res) => {

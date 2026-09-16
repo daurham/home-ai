@@ -209,6 +209,18 @@ CREATE INDEX IF NOT EXISTS idx_habits_created_at ON habits(created_at);
 CREATE TRIGGER update_habits_updated_at BEFORE UPDATE ON habits
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- 11. Shared household files (blobs on disk; this table is the index)
+CREATE TABLE IF NOT EXISTS shared_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    original_name TEXT NOT NULL,
+    stored_name TEXT NOT NULL UNIQUE,
+    mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    size_bytes BIGINT NOT NULL CHECK (size_bytes >= 0),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shared_files_created_at ON shared_files(created_at DESC);
+
 -- Insert default module types
 INSERT INTO modules (name, description, config_schema, data_schema) VALUES
     ('weekly-budget-tracker', 'Tracks weekly spending and income', 

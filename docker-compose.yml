@@ -38,6 +38,9 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-homeai}:${POSTGRES_PASSWORD:-homeai_password}@home-ai-postgres:5432/${POSTGRES_DB:-homeai}
       # Compose DNS — overrides a localhost OLLAMA_URL from .env (that would miss the ollama container).
       - OLLAMA_URL=http://home-ai-ollama:11434/api/generate
+      - FILE_SHARE_DIR=/data/file-share
+    volumes:
+      - file_share_data:/data/file-share
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,3 +99,4 @@ volumes:
   ollama_data:
   postgres_data:
   dashboard_node_modules:
+  file_share_data:

@@ -63,6 +63,10 @@ export async function getClient() {
   return client;
 }
 
+export async function connect() {
+  return pool.connect();
+}
+
 // Initialize database connection
 export async function initDatabase() {
   try {
