@@ -2,8 +2,7 @@
  * Household expense week: Friday 00:00:00.000 → Thursday 23:59:59.999
  * in the household timezone.
  *
- * Default timezone is America/Los_Angeles — this repo had no prior TZ
- * convention (Postgres/Node used timestamps without a household zone).
+ * Default timezone is America/Phoenix (Arizona, no DST).
  *
  * Week assignment for stored expenses uses occurred_on (DATE). That calendar
  * date is interpreted in the household TZ. Month charts use the calendar
@@ -11,7 +10,7 @@
  * across two month buckets (documented, expected).
  */
 
-export const DEFAULT_EXPENSE_TIMEZONE = 'America/Los_Angeles';
+export const DEFAULT_EXPENSE_TIMEZONE = 'America/Phoenix';
 
 const WEEKDAY_INDEX = {
   Sun: 0,

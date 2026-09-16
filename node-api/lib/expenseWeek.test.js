@@ -10,7 +10,7 @@ const TZ = DEFAULT_EXPENSE_TIMEZONE;
 
 describe('getExpenseWeekRange', () => {
   it('assigns Friday 00:00 local to that week', () => {
-    // 2026-09-11 is Friday. Midnight PDT = 07:00 UTC.
+    // 2026-09-11 is Friday. Midnight Arizona (UTC-7) = 07:00 UTC.
     const midnightFriday = new Date('2026-09-11T07:00:00.000Z');
     const range = getExpenseWeekRange(midnightFriday, TZ);
     assert.equal(range.weekKey, '2026-09-11');
@@ -20,7 +20,7 @@ describe('getExpenseWeekRange', () => {
   });
 
   it('assigns Thursday 23:59 local to that same week', () => {
-    // 2026-09-17 23:59:59.999 PDT = 2026-09-18T06:59:59.999Z
+    // 2026-09-17 23:59:59.999 Arizona = 2026-09-18T06:59:59.999Z
     const endThursday = new Date('2026-09-18T06:59:59.999Z');
     const range = getExpenseWeekRange(endThursday, TZ);
     assert.equal(range.weekKey, '2026-09-11');
@@ -58,10 +58,15 @@ describe('getExpenseWeekRange', () => {
 
   it('survives the spring-forward DST edge in America/Los_Angeles', () => {
     // 2026-03-08 is Sunday of week Fri Mar 6 – Thu Mar 12; clocks skip 2am.
-    const range = getExpenseWeekRange('2026-03-08', TZ);
+    const range = getExpenseWeekRange('2026-03-08', 'America/Los_Angeles');
     assert.equal(range.weekKey, '2026-03-06');
     assert.equal(range.weekEndDate, '2026-03-12');
-    const fridayStart = getExpenseWeekRange('2026-03-06', TZ);
+    const fridayStart = getExpenseWeekRange('2026-03-06', 'America/Los_Angeles');
     assert.equal(fridayStart.weekStart.toISOString(), '2026-03-06T08:00:00.000Z'); // PST
+  });
+
+  it('keeps Arizona on UTC-7 in March, when Pacific has sprung forward', () => {
+    const fridayStart = getExpenseWeekRange('2026-03-06', TZ);
+    assert.equal(fridayStart.weekStart.toISOString(), '2026-03-06T07:00:00.000Z');
   });
 });

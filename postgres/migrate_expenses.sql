@@ -2,7 +2,7 @@
 -- init.sql only runs on a fresh Postgres volume; apply this by hand:
 --   psql "$DATABASE_URL" -f postgres/migrate_expenses.sql
 --
--- Household timezone used by the API is America/Los_Angeles unless
+-- Household timezone used by the API is America/Phoenix unless
 -- EXPENSE_TIMEZONE is set. Week assignment uses occurred_on (a calendar date),
 -- so DST does not move an expense between weeks.
 

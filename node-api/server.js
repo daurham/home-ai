@@ -16,6 +16,7 @@ import choresRouter from "./routes/chores.js";
 import habitsRouter from "./routes/habits.js";
 import { startLatencyScheduler } from "./lib/latency/index.js";
 import { createTunnelGuard } from "./lib/externalAccess.js";
+import { buildHomeAssistantPrompt, pipeOllamaStream } from "./lib/homeAssistant.js";
 dotenv.config();
 
 const app = express();
@@ -85,26 +86,49 @@ app.post("/api/nutrition", authenticate, async (req, res) => {
   }
 });
 
-// Home Assistant endpoint
-app.post("/api/home-assistant", authenticate, async (req, res) => {
-  const { message } = req.body;
+// Shared Ollama chat used by the public home-assistant endpoint (API key) and
+// the LAN dashboard route (no key; Cloudflare still requires a key via the tunnel guard).
+async function assistantChat(req, res) {
+  const { message, conversation_history = [], stream = false } = req.body;
+  const text = typeof message === "string" ? message.trim() : "";
+  if (!text) {
+    return res.status(400).json({ error: "message is required" });
+  }
+
+  const prompt = buildHomeAssistantPrompt(text, conversation_history);
+  const ollamaBody = { model: HOME_ASSISTANT_MODEL, prompt, stream: Boolean(stream) };
+
   try {
-    const response = await axios.post(OLLAMA_URL, {
-      model: HOME_ASSISTANT_MODEL,
-      prompt: `You are a helpful AI home assistant.
-      User: ${message}`,
-      stream: false
-    });
+    if (stream) {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      const response = await axios.post(OLLAMA_URL, ollamaBody, {
+        responseType: "stream",
+        timeout: 120000,
+      });
+      pipeOllamaStream(response.data, res);
+      return;
+    }
 
-    const output = response.data.response;
-
-    res.json({ reply: output });
+    const response = await axios.post(OLLAMA_URL, ollamaBody, { timeout: 120000 });
+    res.json({ reply: response.data.response });
   } catch (err) {
     console.error("Ollama request error:", err.message);
     console.error("Full error:", err);
+    if (res.headersSent) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
     res.status(500).json({ error: "Ollama request failed", details: err.message });
   }
-});
+}
+
+// External apps (calorie-tracker, tunnel). Key required here and by the CF guard.
+app.post("/api/home-assistant", authenticate, assistantChat);
+
+// Household dashboard on the LAN. Same Ollama chat; not published at the Cloudflare edge.
+app.post("/api/assistant", assistantChat);
 
 // Generic AI endpoint
 app.post("/api/ai", authenticate, async (req, res) => {
