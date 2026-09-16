@@ -9,7 +9,7 @@ import {
 } from '../lib/logs.js';
 
 const router = express.Router();
-const BOOK_COLUMNS = `id, name, slug, sort_order, created_at, updated_at`;
+const BOOK_COLUMNS = `id, name, slug, sort_order, body, created_at, updated_at`;
 const ENTRY_COLUMNS = `id, book_id, occurred_on::text AS occurred_on, body, amount_cents, created_at, updated_at`;
 
 async function uniqueSlug(base, excludeId = null) {
@@ -42,10 +42,10 @@ router.post('/books', async (req, res) => {
     const slug = await uniqueSlug(parsed.value.slug);
     const maxSort = await query('SELECT COALESCE(MAX(sort_order), -1) AS max FROM log_books');
     const result = await query(
-      `INSERT INTO log_books (name, slug, sort_order)
-       VALUES ($1, $2, $3)
+      `INSERT INTO log_books (name, slug, sort_order, body)
+       VALUES ($1, $2, $3, $4)
        RETURNING ${BOOK_COLUMNS}`,
-      [parsed.value.name, slug, Number(maxSort.rows[0].max) + 1],
+      [parsed.value.name, slug, Number(maxSort.rows[0].max) + 1, parsed.value.body ?? ''],
     );
     res.status(201).json(rowToBook(result.rows[0]));
   } catch (error) {
@@ -59,11 +59,23 @@ router.patch('/books/:id', async (req, res) => {
     if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Invalid log id' });
     const parsed = normalizeBookInput(req.body, { partial: true });
     if (parsed.error) return res.status(400).json({ error: parsed.error });
-    if (!parsed.value.name) return res.status(400).json({ error: 'name is required' });
-    const slug = await uniqueSlug(parsed.value.slug, req.params.id);
+
+    const sets = [];
+    const values = [];
+    let i = 1;
+    if (parsed.value.name) {
+      const slug = await uniqueSlug(parsed.value.slug, req.params.id);
+      sets.push(`name = $${i++}`, `slug = $${i++}`);
+      values.push(parsed.value.name, slug);
+    }
+    if (parsed.value.body !== undefined) {
+      sets.push(`body = $${i++}`);
+      values.push(parsed.value.body);
+    }
+    values.push(req.params.id);
     const result = await query(
-      `UPDATE log_books SET name = $2, slug = $3 WHERE id = $1 RETURNING ${BOOK_COLUMNS}`,
-      [req.params.id, parsed.value.name, slug],
+      `UPDATE log_books SET ${sets.join(', ')} WHERE id = $${i} RETURNING ${BOOK_COLUMNS}`,
+      values,
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Log not found' });
     res.json(rowToBook(result.rows[0]));

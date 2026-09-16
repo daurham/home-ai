@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS log_books (
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
     sort_order INT NOT NULL DEFAULT 0,
+    body TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

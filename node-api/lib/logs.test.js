@@ -19,6 +19,20 @@ describe('normalizeBookInput', () => {
     assert.equal(parsed.error, null);
     assert.equal(parsed.value.name, 'Vehicles');
     assert.equal(parsed.value.slug, 'vehicles');
+    assert.equal(parsed.value.body, '');
+  });
+
+  it('saves a document body without requiring a name on patch', () => {
+    const parsed = normalizeBookInput({ body: '9/15/2026\nHVAC filter changed.' }, { partial: true });
+    assert.equal(parsed.error, null);
+    assert.equal(parsed.value.body, '9/15/2026\nHVAC filter changed.');
+    assert.equal(parsed.value.name, undefined);
+  });
+
+  it('keeps internal whitespace in a document', () => {
+    const parsed = normalizeBookInput({ body: '\nkeep this\n\n' }, { partial: true });
+    assert.equal(parsed.error, null);
+    assert.equal(parsed.value.body, '\nkeep this\n\n');
   });
 });
 

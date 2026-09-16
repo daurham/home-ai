@@ -1,6 +1,7 @@
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const MAX_LOG_BODY = 2000;
+export const MAX_LOG_DOCUMENT = 100_000;
 export const MAX_BOOK_NAME = 40;
 export const MAX_AMOUNT_CENTS = 999_999_999;
 
@@ -36,6 +37,23 @@ export function normalizeBookInput(body = {}, { partial = false } = {}) {
       out.name = name;
       out.slug = slugify(name);
     }
+  }
+
+  if (!partial || body.body !== undefined) {
+    if (body.body !== undefined) {
+      if (typeof body.body !== 'string') errors.push('body must be a string');
+      else if (body.body.length > MAX_LOG_DOCUMENT) {
+        errors.push(`body must be ${MAX_LOG_DOCUMENT} characters or fewer`);
+      } else {
+        out.body = body.body;
+      }
+    } else if (!partial) {
+      out.body = '';
+    }
+  }
+
+  if (partial && out.name === undefined && out.body === undefined && errors.length === 0) {
+    errors.push('No fields to update');
   }
 
   return { value: out, error: errors[0] || null };
@@ -98,7 +116,9 @@ export function rowToBook(row) {
     name: row.name,
     slug: row.slug,
     sortOrder: row.sort_order,
+    body: typeof row.body === 'string' ? row.body : '',
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
   };
 }
 
