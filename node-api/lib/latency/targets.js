@@ -36,6 +36,19 @@ function asNonEmptyString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 
+const BLOCKED_HOSTS = new Set(['metadata.google.internal']);
+
+/**
+ * Link-local addresses host cloud instance metadata. Targets can now come from the
+ * dashboard, so refuse them wherever a host or URL is accepted.
+ */
+export function isBlockedHost(hostname) {
+  const host = asNonEmptyString(hostname).toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return false;
+  if (BLOCKED_HOSTS.has(host)) return true;
+  return host.startsWith('169.254.') || host === 'fe80::a9fe:a9fe';
+}
+
 /**
  * @param {LatencyTargetInput} raw
  * @param {Set<string>} seenIds
@@ -77,6 +90,9 @@ export function normalizeTarget(raw, seenIds = new Set()) {
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         return { error: `id "${id}" url must be http(s)` };
       }
+      if (isBlockedHost(parsed.hostname)) {
+        return { error: `id "${id}" url host is not allowed` };
+      }
     } catch {
       return { error: `id "${id}" has invalid url` };
     }
@@ -99,6 +115,7 @@ export function normalizeTarget(raw, seenIds = new Set()) {
     const host = asNonEmptyString(raw.host);
     const port = Number(raw.port);
     if (!host) return { error: `id "${id}" requires host` };
+    if (isBlockedHost(host)) return { error: `id "${id}" host is not allowed` };
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       return { error: `id "${id}" requires a valid port` };
     }

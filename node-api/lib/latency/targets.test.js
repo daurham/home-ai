@@ -34,6 +34,17 @@ describe('loadTargets', () => {
     assert.ok(errors.some((e) => e.includes('valid env name')));
   });
 
+  it('refuses link-local metadata hosts now that targets can come from the UI', () => {
+    const { targets, errors } = loadTargets([
+      { id: 'meta-http', name: 'Meta', type: 'http', url: 'http://169.254.169.254/latest/meta-data' },
+      { id: 'meta-tcp', name: 'Meta TCP', type: 'tcp', host: '169.254.169.254', port: 80 },
+      { id: 'ok', name: 'OK', type: 'http', url: 'http://127.0.0.1:3000/health' },
+    ]);
+    assert.equal(targets.length, 1);
+    assert.equal(targets[0].id, 'ok');
+    assert.equal(errors.filter((e) => e.includes('not allowed')).length, 2);
+  });
+
   it('requires host/port for tcp', () => {
     const { targets } = loadTargets([
       { id: 'tcp-ok', name: 'TCP', type: 'tcp', host: '127.0.0.1', port: 6379 },

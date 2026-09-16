@@ -4,6 +4,7 @@ import { deriveStatus } from './status.js';
 import { loadTargets } from './targets.js';
 import { probeTarget, closePostgresPools } from './probes.js';
 import { DEFAULT_CONCURRENCY } from './targets.js';
+import { listEnabledTargetInputs } from './store.js';
 
 const TICK_MS = 1000;
 
@@ -29,6 +30,13 @@ function createLimiter(max) {
   };
 }
 
+/** What the dashboard shows as "the thing being probed". Never a secret value. */
+function targetEndpoint(target) {
+  if (target.type === 'tcp') return `${target.host}:${target.port}`;
+  if (target.type === 'postgres') return `${target.connectionStringEnv} (env var)`;
+  return target.url || '';
+}
+
 function publicTarget(state) {
   return {
     id: state.target.id,
@@ -40,6 +48,7 @@ function publicTarget(state) {
     error: state.error || undefined,
     samples: state.buffer.toArray(),
     intervalMs: state.target.intervalMs,
+    endpoint: targetEndpoint(state.target),
   };
 }
 
@@ -54,6 +63,59 @@ function createState(target) {
     lastStartedAt: 0,
     inFlight: false,
   };
+}
+
+/** Whether two configs probe the same thing, i.e. collected history still applies. */
+function sameProbe(a, b) {
+  return (
+    a.type === b.type &&
+    a.url === b.url &&
+    a.method === b.method &&
+    a.host === b.host &&
+    a.port === b.port &&
+    a.connectionStringEnv === b.connectionStringEnv &&
+    a.expectBodyIncludes === b.expectBodyIncludes &&
+    a.sampleCapacity === b.sampleCapacity
+  );
+}
+
+/** Keeps samples for targets that still probe the same endpoint; drops the rest. */
+function reconcileStates(previous, targets) {
+  const byId = new Map(previous.map((state) => [state.target.id, state]));
+  return targets.map((target) => {
+    const existing = byId.get(target.id);
+    if (!existing || !sameProbe(existing.target, target)) return createState(target);
+    // Renames and timing tweaks keep their history.
+    existing.target = target;
+    return existing;
+  });
+}
+
+function builtinTargetInputs() {
+  return typeof getConfiguredTargets === 'function' ? getConfiguredTargets() : getConfiguredTargets;
+}
+
+/** Normalized built-in targets, i.e. the ones the dashboard cannot edit. */
+export function builtinTargets() {
+  const { targets } = loadTargets(builtinTargetInputs());
+  return targets;
+}
+
+/**
+ * Rebuilds the probe list from the built-in config plus enabled database rows.
+ * Built-ins win on id collisions, and a database outage leaves them running.
+ */
+export async function reloadLatencyTargets() {
+  let stored = [];
+  try {
+    stored = await listEnabledTargetInputs();
+  } catch (err) {
+    console.warn('[latency] could not load database targets:', err?.message || err);
+  }
+
+  const { targets, errors } = loadTargets([...builtinTargetInputs(), ...stored]);
+  states = reconcileStates(states, targets);
+  return { count: states.length, errors };
 }
 
 let states = [];
@@ -121,21 +183,21 @@ export async function forceLatencyCheck(id) {
   return runOne(state);
 }
 
-export function startLatencyScheduler() {
+export async function startLatencyScheduler() {
   if (tickTimer) return;
-  const raw = typeof getConfiguredTargets === 'function' ? getConfiguredTargets() : getConfiguredTargets;
-  const { targets } = loadTargets(raw);
-  states = targets.map(createState);
+  // Claim the timer slot before awaiting so a double call cannot start two tickers.
+  tickTimer = setInterval(() => {
+    void tick();
+  }, TICK_MS);
+  if (typeof tickTimer.unref === 'function') tickTimer.unref();
+
+  await reloadLatencyTargets();
   const ollama = states.find((s) => s.target.type === 'ollama');
   console.log(`[latency] scheduler started with ${states.length} target(s), concurrency ${DEFAULT_CONCURRENCY}`);
   if (ollama) {
     console.log(`[latency] ollama probe ${ollama.target.url}`);
   }
   void tick();
-  tickTimer = setInterval(() => {
-    void tick();
-  }, TICK_MS);
-  if (typeof tickTimer.unref === 'function') tickTimer.unref();
 }
 
 export async function stopLatencyScheduler() {

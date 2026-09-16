@@ -60,7 +60,45 @@ export function getLatencyTargets() {
       expectBodyIncludes: 'Ollama is running',
     },
 
+    // Portfolio on Vercel, reached through the Cloudflare proxy (apex A record).
+    // A failure here means Cloudflare, Vercel, or the deployment — the vercel.app
+    // target below tells the two apart. 60s interval to spare free-tier quotas.
+    {
+      id: 'vercel-daurham',
+      name: 'daurham.com (Vercel)',
+      type: 'http',
+      url: 'https://daurham.com/',
+      intervalMs: 60000,
+      timeoutMs: 5000,
+      degradedThresholdMs: 1500,
+    },
+
+    // Cloudflare tunnel end to end: DNS -> Cloudflare edge -> cloudflared -> this API.
+    // Deliberately goes out to the internet and back rather than hitting 127.0.0.1,
+    // so it fails when the tunnel is down even though the local API is fine.
+    {
+      id: 'cf-tunnel-ai',
+      name: 'ai.daurham.com tunnel',
+      type: 'http',
+      url: 'https://ai.daurham.com/api/health',
+      intervalMs: 60000,
+      timeoutMs: 5000,
+      degradedThresholdMs: 1200,
+      expectBodyIncludes: '"status":"healthy"',
+    },
+
     // --- examples (uncomment and edit) ---
+
+    // Vercel origin, bypassing Cloudflare — fill in your project URL to separate
+    // "Cloudflare is broken" from "the deployment is broken":
+    // {
+    //   id: 'vercel-origin',
+    //   name: 'Vercel origin',
+    //   type: 'http',
+    //   url: 'https://your-project.vercel.app/',
+    //   intervalMs: 60000,
+    //   timeoutMs: 5000,
+    // },
 
     // Local app on this machine / homelab host:
     // {

@@ -263,5 +263,6 @@ There is **no** client-supplied URL probe endpoint. `POST /api/latency/check/:id
 
 ## Snapshot API
 
-- `GET /api/latency/snapshot` → `{ targets: [{ id, name, type, status, latencyMs, checkedAt, error?, samples, intervalMs }], generatedAt }`
+- `GET /api/latency/snapshot` → `{ targets: [{ id, name, type, status, latencyMs, checkedAt, error?, samples, intervalMs, endpoint }], generatedAt }`
+  - `endpoint` is display-only: the probe URL, `host:port`, or the env var name for postgres (never the DSN itself).
 - `POST /api/latency/check/:id` — force one allowlisted check

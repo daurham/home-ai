@@ -1,1 +1,8 @@
-export { startLatencyScheduler, stopLatencyScheduler, getLatencySnapshot, forceLatencyCheck } from './scheduler.js';
+export {
+  startLatencyScheduler,
+  stopLatencyScheduler,
+  getLatencySnapshot,
+  forceLatencyCheck,
+  reloadLatencyTargets,
+  builtinTargets,
+} from './scheduler.js';

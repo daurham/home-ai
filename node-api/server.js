@@ -13,6 +13,7 @@ import expenseCategoriesRouter from "./routes/expenseCategories.js";
 import expenseSettingsRouter from "./routes/expenseSettings.js";
 import latencyRouter from "./routes/latency.js";
 import { startLatencyScheduler } from "./lib/latency/index.js";
+import { createTunnelGuard } from "./lib/externalAccess.js";
 dotenv.config();
 
 const app = express();
@@ -44,6 +45,14 @@ const HOME_ASSISTANT_MODEL = LLM.llama3_2_vision;
 const GENERIC_MODEL = LLM.llama3_2_vision;
 const UNCENSORED_MODEL = LLM.uncensored;
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://home-ai-ollama:11434/api/generate";
+
+// Anything arriving through the Cloudflare tunnel needs the API key; LAN traffic
+// (dashboard, latency probes) is untouched. Registered before the routes so it covers
+// the database routers too, which have no auth of their own.
+app.use(createTunnelGuard({ apiKey: API_KEY }));
+if (!API_KEY) {
+  console.warn('⚠️  API_KEY is not set — external requests through the tunnel will all be rejected');
+}
 
 // Middleware for authentication
 function authenticate(req, res, next) {
@@ -232,5 +241,7 @@ app.listen(3000, async () => {
   } else {
     console.log("⚠️  Database connection failed - some features may not work");
   }
-  startLatencyScheduler();
+  startLatencyScheduler().catch((err) => {
+    console.error('[latency] scheduler failed to start:', err?.message || err);
+  });
 });
