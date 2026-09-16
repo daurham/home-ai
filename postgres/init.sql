@@ -221,6 +221,39 @@ CREATE TABLE IF NOT EXISTS shared_files (
 
 CREATE INDEX IF NOT EXISTS idx_shared_files_created_at ON shared_files(created_at DESC);
 
+-- 12. Household logs (dated notes for looking back: maintenance, etc.)
+CREATE TABLE IF NOT EXISTS log_books (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TRIGGER update_log_books_updated_at BEFORE UPDATE ON log_books
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TABLE IF NOT EXISTS log_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    book_id UUID NOT NULL REFERENCES log_books(id) ON DELETE CASCADE,
+    occurred_on DATE NOT NULL,
+    body TEXT NOT NULL,
+    amount_cents INT CHECK (amount_cents IS NULL OR amount_cents > 0),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_log_entries_book_occurred
+    ON log_entries(book_id, occurred_on DESC, created_at DESC);
+
+CREATE TRIGGER update_log_entries_updated_at BEFORE UPDATE ON log_entries
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+INSERT INTO log_books (name, slug, sort_order)
+VALUES ('Maintenance', 'maintenance', 0)
+ON CONFLICT (slug) DO NOTHING;
+
 -- Insert default module types
 INSERT INTO modules (name, description, config_schema, data_schema) VALUES
     ('weekly-budget-tracker', 'Tracks weekly spending and income', 
