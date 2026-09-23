@@ -1,5 +1,8 @@
 FROM node:18-alpine
 
+# Frozen v1.3.1 registration/detection helpers are Python/OpenCV.
+RUN apk add --no-cache python3 py3-opencv py3-numpy
+
 # Create app directory
 WORKDIR /usr/src/app
 

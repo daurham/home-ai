@@ -3,6 +3,8 @@ import axios from "axios";
 import bodyParser from "body-parser";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { initDatabase, query } from "./db.js";
 import modulesRouter from "./routes/modules.js";
 import moduleInstancesRouter from "./routes/moduleInstances.js";
@@ -16,6 +18,8 @@ import choresRouter from "./routes/chores.js";
 import habitsRouter from "./routes/habits.js";
 import filesRouter from "./routes/files.js";
 import logsRouter from "./routes/logs.js";
+import workoutsRouter from "./routes/workouts.js";
+import { getDefaultV131JobService } from "./lib/workout/v131Jobs.js";
 import { startLatencyScheduler } from "./lib/latency/index.js";
 import { createTunnelGuard } from "./lib/externalAccess.js";
 import { buildHomeAssistantPrompt, pipeOllamaStream } from "./lib/homeAssistant.js";
@@ -243,6 +247,12 @@ app.use("/api/chores", choresRouter);
 app.use("/api/habits", habitsRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/logs", logsRouter);
+app.use("/api/workouts", workoutsRouter);
+
+const workoutsPage = path.join(path.dirname(fileURLToPath(import.meta.url)), "public", "workouts.html");
+app.get("/workouts", (_req, res) => {
+  res.sendFile(workoutsPage);
+});
 
 // Health check endpoint (includes database check)
 app.get("/api/health", async (req, res) => {
@@ -263,6 +273,15 @@ app.get("/api/health", async (req, res) => {
     });
   }
 });
+
+const workoutV131Jobs = getDefaultV131JobService();
+try {
+  workoutV131Jobs.recoverInterrupted();
+} catch (err) {
+  console.error('[workout-v1.3.1 jobs] recover failed:', err?.message || err);
+}
+
+workoutV131Jobs.start();
 
 app.listen(3000, async () => {
   console.log("Ollama API server running on http://localhost:3000");

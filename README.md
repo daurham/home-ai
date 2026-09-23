@@ -10,6 +10,7 @@ A Docker-based Home AI API server that provides intelligent responses using Olla
 - **Auto-start** - Automatically starts on system boot
 - **Docker-based** - Fully containerized with Docker Compose
 - **Latency Sparklines** - Background probes of allowlisted services (`GET /api/latency/snapshot`). See `docs/latency-sparklines-setup.md`.
+- **Workout transcription POC** - Local Ollama vision photo → Workout Data System v1.2 JSON. See `docs/workout-transcription-poc.md`.
 - **API Key Authentication** - Secure access with API key
 
 ## 📋 Prerequisites
@@ -64,7 +65,15 @@ Test your API with the provided scripts:
 
 # Or use Python script
 python3 scripts/test_api.py
+
+# Workout transcription POC (validators only; no Ollama)
+cd node-api && npm test
+
+# Live Routine B fixture vs expected v1.2 JSON (local Ollama, several minutes)
+cd node-api && npm run benchmark:workout
 ```
+
+POC UI: `http://<host>/workouts`. Details: `docs/workout-transcription-poc.md`.
 
 ## 🔧 Management Commands
 

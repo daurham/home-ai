@@ -151,3 +151,9 @@ test_stream.py
 test_stream.js
 
 home-dashboard/
+
+*.png
+artifacts/
+fixtures/
+workout-v1.2/
+workout-v1.3.1/

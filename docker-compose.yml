@@ -19,7 +19,7 @@ services:
       retries: 5
 
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:0.34.2
     container_name: home-ai-ollama
     ports:
       - "11434:11434"
@@ -38,7 +38,10 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-homeai}:${POSTGRES_PASSWORD:-homeai_password}@home-ai-postgres:5432/${POSTGRES_DB:-homeai}
       # Compose DNS — overrides a localhost OLLAMA_URL from .env (that would miss the ollama container).
       - OLLAMA_URL=http://home-ai-ollama:11434/api/generate
+      - OLLAMA_BASE_URL=http://home-ai-ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2-vision:11b}
       - FILE_SHARE_DIR=/data/file-share
+      - WORKOUT_V131_JOB_DIR=/data/file-share/.internal/workout-v1.3-jobs
     volumes:
       - file_share_data:/data/file-share
     depends_on:

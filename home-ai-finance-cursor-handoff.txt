@@ -1,0 +1,570 @@
+HOME AI FINANCE SYSTEM — CURSOR IMPLEMENTATION HANDOFF
+
+We are adding a substantial self-hosted personal finance subsystem to my
+existing Home AI project. Do not immediately start coding.
+
+First, inspect the existing repositories thoroughly and understand their
+architecture, conventions, database setup, Docker/deployment flow, API
+patterns, frontend data-access patterns, security/exposure model, and
+existing Expense UI.
+
+Repositories:
+
+-   home-ai — backend/infrastructure; contains the Node API, PostgreSQL
+    infrastructure, Docker Compose, nginx, etc.
+-   home-dashboard — Vite/TypeScript dashboard frontend.
+
+Preserve the existing architecture and conventions wherever reasonable.
+Do not introduce a new framework, ORM, migration system, state library,
+or major dependency simply because it is convenient. Before
+implementation, report what you found and propose the exact
+files/schema/routes/components you intend to add or modify.
+
+OBJECTIVE
+
+Build a finance subsystem whose external bank-data source is Plaid,
+while Home AI/PostgreSQL remains the source of truth for my household’s
+interpretation, categorization, budgeting, reconciliation, and
+historical analytics.
+
+The architectural principle is:
+
+Plaid owns the facts about what the financial institution reported. Home
+AI owns the household’s interpretation of those facts. Never destroy or
+mutate the former to represent the latter.
+
+Plaid must only communicate with the backend. home-dashboard must never
+receive Plaid secrets, Plaid access tokens, encryption keys, or bank
+credentials.
+
+Initially develop entirely against Plaid Sandbox. Do NOT connect
+Production institutions or create Production Items during development. I
+am using Plaid’s free Trial with a limited lifetime number of Production
+Items, so Production connections must not be consumed accidentally.
+
+CORE ARCHITECTURE
+
+Target:
+
+Banks ↓ Plaid ↓ home-ai Node API ↓ normalization / sync / reconciliation
+↓ PostgreSQL ↓ finance API ↓ home-dashboard
+
+PostgreSQL should contain both normalized Plaid records and Home AI’s
+additional financial information.
+
+Plaid synchronization must use /transactions/sync and persist the
+cursor. Handle added, modified, and removed transactions correctly and
+idempotently. Do not save a new cursor until a complete successful sync
+has occurred. Retrying a failed sync must not duplicate transactions.
+
+Properly handle Plaid pending → posted transaction transitions. Pending
+transactions can appear in the UI but generally should not enter the
+user’s normal review workflow until posted.
+
+DATA MODEL
+
+Adapt naming/types to the existing database conventions after inspecting
+the repo, but model these concepts.
+
+PLAID ITEMS
+
+Store Plaid item ID, institution information, connection/status
+information, sync cursor, timestamps and the encrypted Plaid access
+token.
+
+Access tokens must never appear in logs, API responses, frontend code or
+Git. Determine an appropriate encryption-at-rest strategy compatible
+with the existing infrastructure, with the encryption key supplied
+through environment/secrets configuration rather than stored in
+PostgreSQL.
+
+ACCOUNTS
+
+Store normalized Plaid account identity, Item relationship, account
+name/official name, mask/last four, type/subtype, balances, currency,
+active status and timestamps.
+
+TRANSACTIONS
+
+Support both plaid and manual sources.
+
+Preserve fields such as Plaid transaction ID, account, transaction date,
+authorized date, merchant, original Plaid description, amount, currency,
+pending state and relevant transaction metadata.
+
+Also support Home AI metadata including:
+
+-   excluded
+-   review status
+-   notes
+-   transaction kind
+-   categorization source
+
+Transaction kinds should support at minimum:
+
+-   expense
+-   income
+-   transfer
+-   refund
+-   adjustment
+
+Categorization source should distinguish at least:
+
+-   Plaid
+-   merchant rule
+-   AI
+-   user
+
+Preserve the original/raw Plaid transaction payload as JSONB (subject to
+reviewing it for unnecessary sensitive information first) so debugging
+and future migrations don’t depend upon Plaid still returning an old
+representation.
+
+Do not physically delete Plaid transactions simply because the user
+doesn’t want them included. Use exclusion/removal semantics. Manual
+transactions may support actual deletion.
+
+CATEGORIES
+
+Categories belong to Home AI, not Plaid.
+
+Support parent/child categories, preferably two levels in the initial
+UI. Examples:
+
+Food Grocery Restaurants Coffee
+
+Home Household Maintenance Furniture Improvements
+
+Family Baby Pets
+
+Transportation Gas Maintenance
+
+Bills Utilities Internet Phone Subscriptions
+
+Categories should be archivable rather than destructive so historical
+records remain valid.
+
+ALLOCATIONS
+
+This is critical.
+
+Reports/budgets should operate primarily on transaction allocations
+rather than directly assigning one category to every transaction.
+
+A normal transaction:
+
+Heber Market $64.82 └ Grocery $64.82
+
+A split transaction:
+
+Walmart $117.82 ├ Grocery $63.17 ├ Baby $24.65 └ Home $30.00
+
+Every transaction should therefore have one or more allocations. Enforce
+the invariant that allocation totals equal the transaction total, with
+deterministic currency/cent handling.
+
+Each allocation should be capable of storing:
+
+-   category
+-   subtotal amount, when known
+-   tax amount, when known
+-   total amount
+-   notes
+
+Unknown tax/subtotal information should remain NULL/unknown. Never
+fabricate sales tax.
+
+TAX-AWARE SPLITTING
+
+Transaction splitting needs a tax allocation helper.
+
+The user should be able to enter pre-tax category amounts and a known
+total tax amount and choose:
+
+-   proportional tax among taxable allocations
+-   proportional tax among all allocations
+-   manual tax allocation
+
+Each allocation can be marked taxable/non-taxable for calculation
+purposes.
+
+Handle cent rounding deterministically and guarantee that the resulting
+allocation totals exactly equal the bank transaction amount. Any
+rounding remainder should be assigned deterministically rather than
+producing a one-cent mismatch.
+
+Store enough metadata to distinguish tax allocation methods such as:
+
+-   none/unknown
+-   manual
+-   proportional_all
+-   proportional_taxable
+-   receipt
+
+This should later permit receipt parsing without redesigning the ledger.
+
+Receipt/OCR/AI parsing itself is not V1.
+
+BUDGETS
+
+Budgets should be separate entities rather than properties directly on
+categories.
+
+Support at least:
+
+-   weekly
+-   monthly
+-   yearly
+
+A budget should have a category, amount, period, effective start date,
+optional end date and active status.
+
+Historical budget changes must not rewrite what the budget was during
+previous periods.
+
+MERCHANT RULES
+
+Support deterministic merchant categorization rules with match types
+such as exact/contains/regex, priority and active state.
+
+Automation authority should follow:
+
+User decision ↑ Merchant rule ↑ AI suggestion ↑ Plaid category
+
+Once a user has reviewed/corrected a transaction, future automatic
+categorization must not silently overwrite that decision.
+
+When a user changes a category, the frontend should eventually be able
+to offer something like:
+
+Always categorize Netflix as Subscriptions?
+
+Ambiguous merchants such as Walmart/Amazon/Target should not
+automatically become permanent merchant rules merely because one
+transaction was manually categorized.
+
+AI/Ollama categorization is a later enhancement. Design for
+category_source = ai, but do not make AI part of the accounting truth or
+block V1 on it.
+
+TRANSFERS, CREDIT-CARD PAYMENTS AND REFUNDS
+
+Do not double-count internal money movement as spending.
+
+A credit-card purchase plus payment of that credit-card balance must not
+result in twice the expense.
+
+Transactions need transfer semantics, and transfers should normally be
+excluded from expense/income reporting while remaining visible in the
+ledger.
+
+Allow user correction because automated transfer detection will never be
+perfect.
+
+Support refund semantics. V1 does not necessarily need sophisticated
+automatic refund-to-original-transaction matching, but the schema must
+not prevent adding that later.
+
+REVIEW / RECONCILIATION WORKFLOW
+
+Reviewing imported transactions is a primary workflow, not an edge case.
+
+New posted transactions that are not confidently handled by
+deterministic rules should enter unreviewed.
+
+The frontend should provide an extremely fast review queue:
+
+Walmart $84.72 Sep 19 • Chase
+
+Suggested: Grocery
+
+[Correct] [Change category] [Split] [Exclude]
+
+3 / 7
+
+The user should be able to reconcile several transactions rapidly.
+
+The application should prominently show something like:
+
+7 transactions need review
+
+Pending transactions should be visually marked as pending and generally
+should not clutter the review queue.
+
+TRANSACTION MANAGEMENT
+
+Build a serious ledger/table UI rather than only charts.
+
+Transactions should be searchable, sortable and filterable by useful
+dimensions including:
+
+-   date/date range
+-   merchant/description
+-   amount
+-   category
+-   account/institution
+-   reviewed/unreviewed
+-   pending/posted
+-   income/expense/transfer/refund
+-   manual/Plaid
+-   split/not split
+-   included/excluded
+
+Support manual CRUD for things such as cash purchases.
+
+Support editing notes/category/kind/review state and transaction
+allocations.
+
+Design for bulk operations such as categorization, mark reviewed and
+exclude. These can be phased if necessary.
+
+FINANCE UI
+
+Preserve the dashboard’s existing visual language and responsive
+behavior.
+
+The current Expenses functionality should evolve into a larger Finance
+area rather than becoming an unrelated application.
+
+Target navigation concept:
+
+Finance
+
+Overview | Transactions | Budgets | Accounts | Insights
+
+OVERVIEW
+
+Show current-period spending, income/net cash flow where appropriate,
+budget status, spending breakdown, recent transactions and review count.
+
+TRANSACTIONS
+
+Full ledger/table, filters, search, editing, splitting, tax allocation
+and review functionality.
+
+BUDGETS
+
+Create/edit/archive budgets and show progress.
+
+ACCOUNTS
+
+Connected financial accounts, institution, balance, type and
+connection/sync status. Do not expose sensitive Plaid credentials.
+
+INSIGHTS
+
+Design the API/data layer so we can support useful charts including:
+
+-   spending by category
+-   spending over time
+-   budget vs actual
+-   income vs spending
+-   spending by merchant
+-   category trends
+-   spending by account
+-   month-over-month comparisons
+-   weekly/daily burn rate
+
+Don’t fill one page with every possible chart. Use focused
+visualizations.
+
+BALANCE HISTORY
+
+Persist periodic account balance snapshots so Home AI gradually builds
+its own history for:
+
+-   account balance trends
+-   savings growth
+-   debt reduction
+-   eventual net-worth tracking
+
+Determine a sensible snapshot strategy, likely daily, that avoids
+meaningless duplicates.
+
+API BOUNDARY
+
+The dashboard should consume Home AI endpoints, not Plaid.
+
+The exact route style should follow the existing backend after
+inspection, but conceptually we need resources equivalent to:
+
+/api/finance/accounts /api/finance/transactions
+/api/finance/transactions/:id /api/finance/categories
+/api/finance/budgets /api/finance/summary /api/finance/insights
+/api/finance/review /api/finance/rules /api/finance/sync
+
+Plaid administration/setup may use endpoints conceptually like:
+
+/api/finance/plaid/link-token /api/finance/plaid/exchange
+/api/finance/plaid/items
+
+Do not blindly implement these exact paths if the existing API follows a
+different strong convention. Preserve consistency and explain
+deviations.
+
+SECURITY
+
+Treat Finance as more sensitive than ordinary dashboard telemetry.
+
+Inspect nginx, Docker networking, Cloudflare/external exposure and
+existing authentication before exposing any finance routes.
+
+Explicitly identify whether finance endpoints would currently be
+internet-accessible and whether the existing authentication model is
+sufficient.
+
+Do not weaken existing security to make Plaid work.
+
+Secrets must be environment/configuration based and gitignored.
+
+Never log Plaid access tokens, secrets, full bank identifiers or
+unnecessarily sensitive raw payloads.
+
+Be careful with error logging because SDK/API error objects can contain
+request context.
+
+Validate and sanitize API input. Use database transactions when
+operations such as splitting must be atomic.
+
+BACKUPS
+
+The finance database will contain valuable user-created information that
+Plaid cannot reconstruct, including:
+
+-   category corrections
+-   splits
+-   tax allocations
+-   notes
+-   budgets
+-   merchant rules
+-   historical balance snapshots
+
+Inspect the existing PostgreSQL backup strategy.
+
+If adequate automated backups don’t already exist, propose a local
+automated pg_dump strategy with sensible rotation. Do not add paid cloud
+infrastructure.
+
+EXPLICITLY DEFERRED FUNCTIONALITY
+
+Do not allow these to expand V1:
+
+-   Ollama/AI categorization
+-   receipt OCR
+-   receipt line-item extraction
+-   AI-driven tax determination
+-   sophisticated subscription detection
+-   sophisticated automatic refund matching
+-   cash-flow forecasting
+
+Design so these can be added cleanly later.
+
+IMPLEMENTATION PHASES
+
+Do this incrementally.
+
+PHASE 0 — ARCHITECTURE AUDIT
+
+Inspect both repositories. Report:
+
+-   current backend architecture
+-   DB/schema/migration approach
+-   API/router conventions
+-   frontend architecture/state/data fetching
+-   existing Expense implementation
+-   Docker/deployment architecture
+-   authentication/security boundary
+-   external exposure
+-   backup strategy
+-   exact proposed files to add/change
+-   dependencies actually required
+-   risks or assumptions
+
+STOP after Phase 0 and show me the plan. Do not begin implementation
+until I approve it.
+
+PHASE 1 — FINANCE FOUNDATION
+
+Database schema/migrations, finance service boundaries, Plaid Sandbox
+client/configuration, encrypted token storage, Plaid Item/account setup,
+/transactions/sync, normalization and tests.
+
+Verify Sandbox end-to-end before proceeding.
+
+PHASE 2 — LEDGER
+
+Transactions API, categories, allocations, manual transactions, editing,
+splits, tax allocation, transfers/refunds/exclusion/review semantics.
+
+PHASE 3 — FINANCE UI
+
+Overview, transaction ledger, review queue, transaction editor/split
+editor, budgets and accounts.
+
+PHASE 4 — ANALYTICS
+
+Summary queries, charts/Insights, balance history and useful aggregate
+views.
+
+PHASE 5 — POLISH
+
+Merchant rules, bulk operations, responsive refinement,
+failure/reconnect states, sync visibility, backup verification and
+documentation.
+
+Production Plaid connections happen only after the Sandbox
+implementation has been explicitly approved and verified.
+
+TESTING EXPECTATIONS
+
+Financial calculations require tests.
+
+At minimum test:
+
+-   Plaid sync idempotency
+-   pagination/cursor behavior
+-   added/modified/removed transactions
+-   pending → posted handling
+-   duplicate prevention
+-   normal single allocations
+-   split allocations
+-   split totals that don’t balance
+-   proportional tax allocation
+-   taxable-only tax allocation
+-   manual tax allocation
+-   cent-rounding edge cases
+-   transfers excluded from spending
+-   refunds
+-   excluded transactions
+-   user categorization surviving later syncs
+-   merchant rules not overwriting user decisions
+-   manual transaction CRUD
+-   budget calculations across weekly/monthly/yearly boundaries
+
+Prefer integer minor units (cents) or the project’s existing safe
+decimal-money representation. Do not use ordinary floating-point
+arithmetic for authoritative financial calculations.
+
+WORKING STYLE
+
+Do not rewrite unrelated code.
+
+Do not prematurely abstract everything.
+
+Do not introduce microservices. This belongs inside the existing Home AI
+architecture unless repository inspection reveals a compelling reason
+otherwise.
+
+Do not invent existing infrastructure. Verify it from the repositories.
+
+When uncertain about a business rule that affects financial correctness,
+ask rather than silently choosing one.
+
+Keep commits/changes logically separable by phase.
+
+Update relevant documentation and .env.example, but never commit real
+Plaid credentials.
+
+Most importantly: begin with Phase 0 only. Inspect the codebase and
+return the architecture/implementation plan for my approval. Do not
+write the finance implementation yet.

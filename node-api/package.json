@@ -4,19 +4,44 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "test": "node --test lib/*.test.js lib/latency/*.test.js",
-    "start": "node server.js"
+    "test": "node --test lib/*.test.js lib/latency/*.test.js lib/workout/*.test.js",
+    "start": "node server.js",
+    "benchmark:workout": "node scripts/benchmark-routine-b.js",
+    "benchmark:poc2": "node scripts/benchmark-poc2.js",
+    "benchmark:poc3": "node scripts/benchmark-poc3.js",
+    "benchmark:poc4": "node scripts/benchmark-poc4.js",
+    "vision-debug:workout": "node scripts/vision-debug-routine-b.js",
+    "preview:poc2-crops": "node scripts/preview-poc2-crops.js",
+    "poc6": "node scripts/poc6-register.js",
+    "poc7": "node scripts/poc7-detect.js",
+    "benchmark:poc7b": "node scripts/benchmark-poc7b.js",
+    "poc7c": "node scripts/poc7c-forensics.js",
+    "poc7d": "node scripts/poc7d-ablate.js",
+    "poc7e": "node scripts/poc7e-confirm.js",
+    "poc7f": "node scripts/poc7f-expand.js",
+    "poc8": "node scripts/poc8-recognize.js",
+    "poc8b": "node scripts/poc8b-decontaminate.js",
+    "poc8c": "node scripts/poc8c-gate.js",
+    "poc8d": "node scripts/poc8d-verify.js",
+    "poc9": "node scripts/poc9-assemble.js",
+    "poc10": "node scripts/poc10-headers.js",
+    "poc11": "node scripts/poc11-blind.js",
+    "poc11:score": "node scripts/poc11-score.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "axios": "^1.12.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "multer": "^2.4.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^5.1.1"
   }
 }

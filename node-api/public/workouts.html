@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Workout transcription POC</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #11141c;
+      --card: #1b2130;
+      --ink: #eef2ff;
+      --muted: #9aa6c1;
+      --accent: #7dd3fc;
+      --bad: #fca5a5;
+      --ok: #86efac;
+    }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p { color: var(--muted); }
+    form, section {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    label { display: block; margin: 12px 0 6px; font-size: 0.9rem; }
+    input[type="file"], input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: #0f1320;
+      color: var(--ink);
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+    button {
+      flex: 1;
+      min-width: 160px;
+      padding: 14px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #082f49;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    button.secondary { background: #334155; color: var(--ink); }
+    button[disabled] { opacity: 0.6; }
+    pre {
+      overflow: auto;
+      background: #0f1320;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .pill { padding: 6px 10px; border-radius: 999px; background: #0f1320; }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    img { max-width: 100%; border-radius: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Local Ollama workout transcription</h1>
+    <p>Proof of concept only. Photo stays on this machine and is sent only to local Ollama via <code>/api/chat</code>.</p>
+    <form id="form">
+      <div>Model: <strong id="model">…</strong></div>
+      <label for="image">Workout sheet (JPG or PNG)</label>
+      <input id="image" name="image" type="file" accept="image/jpeg,image/png" capture="environment" required />
+      <label for="modelOverride">Optional model override</label>
+      <input id="modelOverride" name="model" type="text" placeholder="llama3.2-vision:11b" />
+      <div class="actions">
+        <button type="button" id="poc3Whole">POC #3 whole page</button>
+        <button type="button" id="poc2Whole">POC #2 whole page</button>
+        <button type="button" id="poc2Crops">POC #2 crops</button>
+        <button type="button" class="secondary" id="visionDebug">Vision Debug</button>
+        <button type="submit" class="secondary">Pack transcribe (POC #1)</button>
+      </div>
+      <p id="status"></p>
+      <img id="preview" alt="" />
+    </form>
+    <section id="debugResult" hidden>
+      <h2>Vision debug (no schema, no pack)</h2>
+      <div class="row">
+        <div class="pill">Elapsed: <span id="debugElapsed"></span> ms</div>
+        <div class="pill">Used model: <span id="debugModel"></span></div>
+      </div>
+      <pre id="debugRaw"></pre>
+    </section>
+    <section id="result" hidden>
+      <div class="row">
+        <div class="pill">Elapsed: <span id="elapsed"></span> ms</div>
+        <div class="pill">Valid: <span id="valid"></span></div>
+        <div class="pill">Used model: <span id="usedModel"></span></div>
+        <div class="pill">Variant: <span id="variant"></span></div>
+        <div class="pill">B03 exact: <span id="b03"></span></div>
+      </div>
+      <h2>Raw extraction</h2>
+      <pre id="rawExtraction"></pre>
+      <h2>Schema errors</h2>
+      <pre id="schemaErrors"></pre>
+      <h2>Semantic errors</h2>
+      <pre id="semanticErrors"></pre>
+      <h2>Warnings</h2>
+      <pre id="warnings"></pre>
+      <h2>Parsed JSON</h2>
+      <pre id="parsed"></pre>
+      <h2>Raw model output</h2>
+      <pre id="raw"></pre>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById('form');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const debugResult = document.getElementById('debugResult');
+    const preview = document.getElementById('preview');
+    const buttons = [...form.querySelectorAll('button')];
+
+    fetch('/api/workouts/meta').then((r) => r.json()).then((meta) => {
+      document.getElementById('model').textContent = meta.model || 'unknown';
+    }).catch(() => {
+      document.getElementById('model').textContent = 'unavailable';
+    });
+
+    document.getElementById('image').addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      preview.src = file ? URL.createObjectURL(file) : '';
+    });
+
+    function formData() {
+      const file = document.getElementById('image').files[0];
+      if (!file) {
+        status.textContent = 'Choose a workout-sheet image first.';
+        return null;
+      }
+      const data = new FormData();
+      data.append('image', file);
+      const override = document.getElementById('modelOverride').value.trim();
+      if (override) data.append('model', override);
+      return data;
+    }
+
+    async function postWorkout(path, data) {
+      buttons.forEach((btn) => { btn.disabled = true; });
+      try {
+        const response = await fetch(path, { method: 'POST', body: data });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.details || body.error || response.statusText);
+        return body;
+      } finally {
+        buttons.forEach((btn) => { btn.disabled = false; });
+      }
+    }
+
+    function showTranscribeResult(body) {
+      document.getElementById('elapsed').textContent = body.elapsed_ms;
+      document.getElementById('usedModel').textContent = body.model;
+      const valid = Boolean(body.validation && body.validation.valid);
+      const validEl = document.getElementById('valid');
+      validEl.textContent = String(valid);
+      validEl.className = valid ? 'ok' : 'bad';
+      document.getElementById('variant').textContent = body.variant || body.poc || 'poc1';
+      const b03 = body.benchmark?.b03_exact;
+      const b03El = document.getElementById('b03');
+      b03El.textContent = b03 == null ? 'n/a' : String(b03);
+      b03El.className = b03 === true ? 'ok' : b03 === false ? 'bad' : '';
+      document.getElementById('rawExtraction').textContent = JSON.stringify(body.rawTranscription || null, null, 2);
+      document.getElementById('schemaErrors').textContent = JSON.stringify(body.validation?.schemaErrors || [], null, 2);
+      document.getElementById('semanticErrors').textContent = JSON.stringify(body.validation?.semanticErrors || [], null, 2);
+      document.getElementById('warnings').textContent = JSON.stringify(body.validation?.warnings || [], null, 2);
+      document.getElementById('parsed').textContent = JSON.stringify(body.workout, null, 2);
+      document.getElementById('raw').textContent = body.raw || '';
+      result.hidden = false;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = formData();
+      if (!data) return;
+      status.textContent = 'POC #1 pack transcribe. This can take several minutes…';
+      result.hidden = true;
+      debugResult.hidden = true;
+      try {
+        showTranscribeResult(await postWorkout('/api/workouts/transcribe', data));
+        status.textContent = 'Done.';
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    });
+
+    async function runPoc2(variant) {
+      const data = formData();
+      if (!data) return;
+      data.append('variant', variant);
+      status.textContent = `POC #2 ${variant}: raw cells only, then JS normalizes. This can take several minutes…`;
+      result.hidden = true;
+      debugResult.hidden = true;
+      try {
+        showTranscribeResult(await postWorkout('/api/workouts/poc2', data));
+        status.textContent = 'Done.';
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    }
+
+    document.getElementById('poc2Whole').addEventListener('click', () => runPoc2('whole-page'));
+    document.getElementById('poc2Crops').addEventListener('click', () => runPoc2('crops'));
+
+    document.getElementById('poc3Whole').addEventListener('click', async () => {
+      const data = formData();
+      if (!data) return;
+      status.textContent = 'POC #3 whole page: literal cells only, then JS normalizes. This can take several minutes…';
+      result.hidden = true;
+      debugResult.hidden = true;
+      try {
+        showTranscribeResult(await postWorkout('/api/workouts/poc3', data));
+        status.textContent = 'Done.';
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    });
+
+    document.getElementById('visionDebug').addEventListener('click', async () => {
+      const data = formData();
+      if (!data) return;
+      status.textContent = 'Vision debug: same photo, no schema, no transcription pack…';
+      result.hidden = true;
+      debugResult.hidden = true;
+      try {
+        const body = await postWorkout('/api/workouts/vision-debug', data);
+        document.getElementById('debugElapsed').textContent = body.elapsed_ms;
+        document.getElementById('debugModel').textContent = body.model;
+        document.getElementById('debugRaw').textContent = body.raw || '';
+        debugResult.hidden = false;
+        status.textContent = 'Vision debug done. Paste that text into ChatGPT.';
+      } catch (err) {
+        status.textContent = err.message;
+      }
+    });
+  </script>
+</body>
+</html>
