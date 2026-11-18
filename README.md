@@ -12,6 +12,7 @@ A Docker-based Home AI API server that provides intelligent responses using Olla
 - **Latency Sparklines** - Background probes of allowlisted services (`GET /api/latency/snapshot`). See `docs/latency-sparklines-setup.md`.
 - **Workout transcription POC** - Local Ollama vision photo → Workout Data System v1.2 JSON. See `docs/workout-transcription-poc.md`.
 - **API Key Authentication** - Secure access with API key
+- **Local audio generation** - Separate queue, worker, and library under `services/audio-generation/`. It does not run inside the Node API container.
 
 ## 📋 Prerequisites
 
