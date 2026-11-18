@@ -184,7 +184,7 @@ class ServiceTests(unittest.TestCase):
         job = self.db.job(job["id"])
         self.assertEqual(job["state"], "completed")
         self.assertEqual(job["attempts"], 1)
-        self.assertEqual(self.drive.uploads, 3)
+        self.assertEqual(self.drive.uploads, 4 if self.worker.ffmpeg else 3)
         manifest = job["result"]["manifest"]
         self.assertTrue(manifest["drive"]["verified"])
         self.assertEqual(manifest["provider_cost_usd"] if "provider_cost_usd" in manifest else manifest["metrics"]["provider_cost_usd"], 0)
@@ -402,9 +402,10 @@ class ServiceTests(unittest.TestCase):
             with urllib.request.urlopen(base + "/", timeout=5) as response:
                 page = response.read().decode()
                 self.assertEqual(response.status, 200)
-            self.assertIn(f"/audio/{asset_id}", page)
+            self.assertIn("Home AI Music Studio", page)
             self.assertNotIn("password", page.lower())
             self.assertNotIn("/login", page)
+            self.assertNotIn(self.cfg.api_token, page)
             with urllib.request.urlopen(base + f"/audio/{asset_id}", timeout=5) as response:
                 header = response.read(12)
                 self.assertEqual(response.status, 200)

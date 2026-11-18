@@ -92,6 +92,25 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_assets_approval ON assets(approval_status, type);
                 """
             )
+            self._ensure_asset_columns(conn)
+
+    def _ensure_asset_columns(self, conn: sqlite3.Connection) -> None:
+        present = {row[1] for row in conn.execute("PRAGMA table_info(assets)")}
+        additions = {
+            "clean_wav_path": "TEXT",
+            "clean_sha256": "TEXT",
+            "clean_size_bytes": "INTEGER",
+            "clean_duration_seconds": "REAL",
+            "silence_start_seconds": "REAL",
+            "silence_end_seconds": "REAL",
+            "fade_applied": "INTEGER NOT NULL DEFAULT 0",
+            "favorite": "INTEGER NOT NULL DEFAULT 0",
+            "listening_checked": "INTEGER NOT NULL DEFAULT 0",
+            "listening_note": "TEXT",
+        }
+        for name, declaration in additions.items():
+            if name not in present:
+                conn.execute(f"ALTER TABLE assets ADD COLUMN {name} {declaration}")
 
     def connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, timeout=30, isolation_level=None)
@@ -324,6 +343,14 @@ class Database:
         with self.connect() as conn:
             self._event(conn, job_id, level, message)
 
+    def latest_event(self, job_id: str) -> str:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT message FROM events WHERE job_id = ? ORDER BY id DESC LIMIT 1",
+                (job_id,),
+            ).fetchone()
+        return row["message"] if row else ""
+
     def cancel_flag(self, job_id: str) -> bool:
         with self.connect() as conn:
             row = conn.execute(
@@ -383,6 +410,9 @@ class Database:
             "approval_status", "approved_at", "drive_file_id", "drive_url", "drive_folder",
             "metadata_drive_file_id", "metadata_drive_url", "favorite_shortcut_id",
             "mp3_path", "sha256", "size_bytes",
+            "clean_wav_path", "clean_sha256", "clean_size_bytes", "clean_duration_seconds",
+            "silence_start_seconds", "silence_end_seconds", "fade_applied", "favorite",
+            "listening_checked", "listening_note",
         }
         sets = []
         args: list[Any] = []
@@ -404,6 +434,7 @@ class Database:
         episode: str = "",
         kind: str = "",
         approved_only: bool = False,
+        favorite_only: bool = False,
         min_duration: float | None = None,
         max_duration: float | None = None,
         limit: int = 50,
@@ -412,6 +443,8 @@ class Database:
         args: list[Any] = []
         if approved_only:
             sql += " AND approval_status = 'approved'"
+        if favorite_only:
+            sql += " AND favorite = 1"
         if genre:
             sql += " AND genre = ?"
             args.append(genre)
@@ -449,4 +482,10 @@ class Database:
             )
         else:
             self.update_asset(asset_id, approval_status="pending", approved_at=None)
+        return self.asset(asset_id)
+
+    def set_favorite(self, asset_id: str, favorite: bool) -> dict | None:
+        if not self.asset(asset_id):
+            return None
+        self.update_asset(asset_id, favorite=1 if favorite else 0)
         return self.asset(asset_id)

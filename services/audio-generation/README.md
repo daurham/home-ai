@@ -38,7 +38,11 @@ systemctl --user enable --now audio-preview.service audio-bridge.timer
 
 The API listens on `127.0.0.1:8795`. Health is `GET /health`. Every other route requires a bearer token.
 
-The preview has no password. `GET /` lists library tracks, and `/audio/<asset_id>` streams that one WAV. It accepts only loopback and private-network clients, and it cannot create jobs, approve tracks, or read files outside the library. Set `AUDIO_PREVIEW_BIND` to `127.0.0.1`, a private address, or `0.0.0.0` for the home LAN. Do not add port 8796 to Cloudflare Tunnel or any public hostname. `AUDIO_PREVIEW_TOKEN` is unused.
+Open `http://<this-machine>:8796/` on the home network for Home AI Music Studio. There is no password. The page can queue a track, show the job, play it, and download WAV or MP3. The browser does not receive the API token. The page only accepts loopback, link-local, and private-network clients, and it forwards generation to `127.0.0.1:8795`. State-changing requests need a same-origin page token. Do not add port 8796 to Cloudflare Tunnel.
+
+Anyone who can open that page can use this computer's generation time. The queue still holds one active generation, and the API keeps its existing rate limit. GitHub requests use the same SQLite queue and do not need the page.
+
+`python -m audio_studio.cli listening` writes MP3 copies and, when a WAV has a long silent tail, a separate trimmed listening file. Original WAVs are not rewritten. Playback at 1× is the generated file. Other speeds are the browser's playback rate: they change pitch and can sound thin. That does not repair the recording. A player that shows 0:00 before the header loads is waiting on metadata; the studio shows the stored duration immediately and requests the header up front.
 
 Generation uses ACE-Step 1.5 in the isolated environment under `AUDIO_HOME`. Keep the language model off on CPU (`ACESTEP_INIT_LLM=false` is set by the worker). Re-apply `patches/dit-only-skip-lm.patch` after updating that checkout. Do not install the CUDA wheels from upstream `uv sync` on a machine without NVIDIA.
 
@@ -52,6 +56,6 @@ That leaves the Node API, Ollama, and saved library files in place.
 
 ## Production
 
-Run the units from a dedicated checkout of `main` so unrelated working-tree edits cannot change the running code. The job API stays on localhost with its bearer token. The preview stays on the home LAN without a password. Set `AUDIO_GITHUB_BRANCH` to the client branch that should be polled. The bridge only commits request, result, and activity files.
+Run the units from a dedicated checkout of `main` so unrelated working-tree edits cannot change the running code. The job API stays on localhost with its bearer token. The studio page stays on the home LAN without a password. Set `AUDIO_GITHUB_BRANCH` to the client branch that should be polled. The bridge only commits request, result, and activity files.
 
 Giving a cloud renderer the WAV is not built in. Do not publish the library directory. A later free option is an outbound upload of one checksum-verified file into a short-lived private workflow artifact, or mixing on the same machine that already holds the file.

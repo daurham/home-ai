@@ -104,7 +104,7 @@ def _write_result(path: Path, job: dict) -> None:
 
 
 def _scrub(value):
-    hidden = {"wav_path", "mp3_path", "local_path"}
+    hidden = {"wav_path", "mp3_path", "clean_wav_path", "local_path"}
     if isinstance(value, dict):
         return {key: _scrub(item) for key, item in value.items() if key not in hidden}
     if isinstance(value, list):
