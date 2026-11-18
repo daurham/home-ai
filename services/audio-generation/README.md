@@ -47,3 +47,9 @@ systemctl --user disable --now audio-api.service audio-worker.service audio-prev
 ```
 
 That leaves the Node API, Ollama, and saved library files in place.
+
+## Production
+
+Run the units from a dedicated checkout of `main` so unrelated working-tree edits cannot change the running code. The job API stays on localhost. Set `AUDIO_GITHUB_BRANCH` to the client branch that should be polled. The bridge only commits request, result, and activity files.
+
+Giving a cloud renderer the WAV is not built in. Do not publish the library directory. A later free option is an outbound upload of one checksum-verified file into a short-lived private workflow artifact, or mixing on the same machine that already holds the file.
