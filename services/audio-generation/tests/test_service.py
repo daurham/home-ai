@@ -19,7 +19,7 @@ from audio_studio.db import Database
 from audio_studio.drive import DriveClient, DriveUploadError
 from audio_studio.github_sync import sync_remote
 from audio_studio.media import write_tone
-from audio_studio.preview import PreviewServer
+from audio_studio.preview import PreviewServer, local_preview_bind, trusted_preview_client
 from audio_studio.worker import Worker
 
 
@@ -68,7 +68,6 @@ def config(root: Path, **overrides):
         drive_enabled=False,
         preview_bind="127.0.0.1",
         preview_port=0,
-        preview_token="preview-secret",
         ffmpeg="",
         drive_configured=False,
     )
@@ -370,7 +369,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(jobs[0]["attempts"], 1)
         self.assertEqual(jobs[0]["state"], "local_ready")
 
-    def test_preview_requires_login_and_streams_wav(self):
+    def test_preview_opens_without_a_password(self):
         asset_id = "ast_" + "ab" * 16
         wav = self.root / "library" / f"{asset_id}.wav"
         write_tone(wav, 0.2)
@@ -400,38 +399,64 @@ class ServiceTests(unittest.TestCase):
         thread.start()
         base = f"http://127.0.0.1:{server.server_address[1]}"
         try:
-            class NoRedirect(urllib.request.HTTPRedirectHandler):
-                def redirect_request(self, req, fp, code, msg, headers, newurl):
-                    raise urllib.error.HTTPError(req.full_url, code, msg, headers, fp)
-
-            opener_no_redirect = urllib.request.build_opener(NoRedirect)
-            with self.assertRaises(urllib.error.HTTPError) as caught:
-                opener_no_redirect.open(base + f"/audio/{asset_id}", timeout=5)
-            self.assertEqual(caught.exception.code, 303)
-            bad = urllib.request.Request(
-                base + "/login",
-                data=b"password=wrong",
-                method="POST",
-            )
-            with self.assertRaises(urllib.error.HTTPError) as caught:
-                urllib.request.urlopen(bad, timeout=5)
-            self.assertEqual(caught.exception.code, 401)
-            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
-            opener.open(urllib.request.Request(
-                base + "/login",
-                data=b"password=preview-secret",
-                method="POST",
-            ), timeout=5)
-            with opener.open(base + f"/audio/{asset_id}", timeout=5) as response:
+            with urllib.request.urlopen(base + "/", timeout=5) as response:
+                page = response.read().decode()
+                self.assertEqual(response.status, 200)
+            self.assertIn(f"/audio/{asset_id}", page)
+            self.assertNotIn("password", page.lower())
+            self.assertNotIn("/login", page)
+            with urllib.request.urlopen(base + f"/audio/{asset_id}", timeout=5) as response:
                 header = response.read(12)
                 self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get("Set-Cookie"), None)
             self.assertEqual(header[:4], b"RIFF")
             with self.assertRaises(urllib.error.HTTPError) as caught:
-                opener.open(base + "/audio/../../etc/passwd", timeout=5)
+                urllib.request.urlopen(base + "/audio/../../etc/passwd", timeout=5)
             self.assertEqual(caught.exception.code, 404)
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                urllib.request.urlopen(urllib.request.Request(base + "/v1/jobs", method="POST"), timeout=5)
+            self.assertEqual(caught.exception.code, 405)
+            denied = _FakeRequest("8.8.8.8", "/")
+            PreviewServer(self.cfg, self.db)._handle(denied, "GET")
+            self.assertEqual(denied.status, 403)
         finally:
             server.shutdown()
             server.server_close()
+
+    def test_preview_accepts_only_local_clients(self):
+        self.assertTrue(trusted_preview_client("127.0.0.1"))
+        self.assertTrue(trusted_preview_client("192.168.1.20"))
+        self.assertTrue(trusted_preview_client("::ffff:192.168.1.20"))
+        self.assertTrue(trusted_preview_client("10.1.2.3"))
+        self.assertTrue(trusted_preview_client("172.16.5.5"))
+        self.assertFalse(trusted_preview_client("8.8.8.8"))
+        self.assertFalse(trusted_preview_client("203.0.113.8"))
+        self.assertFalse(trusted_preview_client("not-an-ip"))
+        self.assertTrue(local_preview_bind("0.0.0.0"))
+        self.assertTrue(local_preview_bind("192.168.1.161"))
+        self.assertFalse(local_preview_bind("203.0.113.8"))
+
+
+class _FakeRequest:
+    def __init__(self, address: str, path: str):
+        self.client_address = (address, 9)
+        self.path = path
+        self.headers = {}
+        self.status = None
+        self._body = bytearray()
+        self.wfile = self
+
+    def send_response(self, status: int) -> None:
+        self.status = status
+
+    def send_header(self, name: str, value: str) -> None:
+        return
+
+    def end_headers(self) -> None:
+        return
+
+    def write(self, data: bytes) -> None:
+        self._body.extend(data)
 
 
 def _git(cwd: Path, *args: str) -> None:

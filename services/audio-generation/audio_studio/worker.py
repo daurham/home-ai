@@ -309,7 +309,7 @@ class Worker:
             "size_bytes": asset["size_bytes"],
             "listening": {
                 "method": "lan-preview",
-                "note": "Sign in on the home-network preview. This manifest does not contain the password.",
+                "note": "Open the home-network preview. This manifest does not include a file path.",
             },
             "drive": {
                 "status": drive_status,

@@ -85,7 +85,6 @@ class Config:
     drive_enabled: bool
     preview_bind: str
     preview_port: int
-    preview_token: str
     ffmpeg: str
 
     @property
@@ -183,7 +182,6 @@ def load_config() -> Config:
         drive_enabled=drive_enabled,
         preview_bind=preview_bind,
         preview_port=_int("AUDIO_PREVIEW_PORT", 8796, 1024, 65535),
-        preview_token=os.environ.get("AUDIO_PREVIEW_TOKEN", ""),
         ffmpeg=os.environ.get("AUDIO_FFMPEG", ""),
     )
     for directory in (
