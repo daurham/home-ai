@@ -51,6 +51,8 @@ def sync_inbox(config, inbox: Path, results: Path, accepted: Path, log_root: Pat
         destination = accepted / path.name
         shutil.move(str(path), destination)
         if job["state"] in TERMINAL:
+            if (job.get("result") or {}).get("reused"):
+                _log(config, "done", request_id, job, "Reused an existing library asset. No new audio was generated.", log_root)
             notes.append(request_id + " already finished")
             continue
         _log(config, "start", request_id, job, "Audio request accepted", log_root)
