@@ -1,0 +1,17 @@
+diff --git a/acestep/model_downloader.py b/acestep/model_downloader.py
+index 30d9f9a..e4239ef 100644
+--- a/acestep/model_downloader.py
++++ b/acestep/model_downloader.py
+@@ -395,7 +395,11 @@ def check_main_model_exists(checkpoints_dir: Optional[Path] = None) -> bool:
+     elif isinstance(checkpoints_dir, str):
+         checkpoints_dir = Path(checkpoints_dir)
+ 
+-    for component in MAIN_MODEL_COMPONENTS:
++    components = list(MAIN_MODEL_COMPONENTS)
++    # DiT-only CPU installs must not pull the 1.7B LM just to satisfy this check.
++    if os.getenv("ACESTEP_INIT_LLM", "").strip().lower() in {"0", "false", "no", "n", "off"}:
++        components = [item for item in components if "5Hz-lm" not in item]
++    for component in components:
+         component_path = checkpoints_dir / component
+         if not _contains_model_weights(component_path):
+             return False

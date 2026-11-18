@@ -1,0 +1,17 @@
+[Unit]
+Description=Read-only home audio preview
+After=audio-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/home-ai-audio/services/audio-generation
+Environment=PYTHONPATH=%h/home-ai-audio/services/audio-generation
+EnvironmentFile=%h/audio-service/.env
+ExecStart=%h/audio-service/.venv/bin/python -m audio_studio.cli preview
+Restart=on-failure
+RestartSec=3
+MemoryMax=256M
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

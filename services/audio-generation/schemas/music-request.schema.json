@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "audio-request.schema.json",
+  "title": "Library music request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "type", "prompt", "duration_seconds", "approval"],
+  "properties": {
+    "request_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,80}$"},
+    "type": {"enum": ["music", "sfx"]},
+    "episode": {"type": "string", "pattern": "^$|^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+    "prompt": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "duration_seconds": {"type": "number", "minimum": 10, "maximum": 180},
+    "variants": {"const": 1},
+    "genre": {"enum": ["synthwave", "cinematic", "ambient", "other"]},
+    "mood": {"type": "array", "maxItems": 8, "items": {"type": "string", "maxLength": 40}},
+    "tags": {"type": "array", "maxItems": 8, "items": {"type": "string", "maxLength": 40}},
+    "seed": {"type": ["integer", "null"], "minimum": 0},
+    "save_to_library": {"type": "boolean"},
+    "reuse_asset_id": {"type": "string", "pattern": "^ast_[a-f0-9]{32}$"},
+    "approval": {"const": "GENERATE_LIBRARY_MUSIC"},
+    "publishing_authorized": {"const": false}
+  }
+}

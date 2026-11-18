@@ -1,0 +1,18 @@
+[Unit]
+Description=Home audio generation worker
+After=audio-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/home-ai-audio/services/audio-generation
+Environment=PYTHONPATH=%h/home-ai-audio/services/audio-generation
+EnvironmentFile=%h/audio-service/.env
+ExecStart=%h/audio-service/.venv/bin/python -m audio_studio.cli worker
+Restart=on-failure
+RestartSec=5
+MemoryMax=16G
+CPUQuota=1200%
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

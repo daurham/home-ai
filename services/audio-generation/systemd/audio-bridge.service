@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll a client repository for audio requests
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/home-ai-audio/services/audio-generation
+Environment=PYTHONPATH=%h/home-ai-audio/services/audio-generation
+EnvironmentFile=%h/audio-service/.env
+Environment=AUDIO_GITHUB_PUSH=true
+ExecStart=%h/audio-service/.venv/bin/python -m audio_studio.cli bridge --remote
+NoNewPrivileges=true

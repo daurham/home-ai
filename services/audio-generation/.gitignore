@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.sqlite
+*.sqlite-*
+.env
+google-client.json
+google-token.json
