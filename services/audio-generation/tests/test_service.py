@@ -460,7 +460,8 @@ class ServiceTests(unittest.TestCase):
             with urllib.request.urlopen(base + "/", timeout=5) as response:
                 page = response.read().decode()
                 cookie = response.headers.get("Set-Cookie", "").split(";", 1)[0].split("=", 1)[1]
-            self.assertIn(">Lab<", page)
+            self.assertIn('id="toggle-lab"', page)
+            self.assertIn("Quality lab", page)
             with urllib.request.urlopen(base + "/api/quality-lab", timeout=5) as response:
                 body = json.loads(response.read().decode())
             raw = json.dumps(body)

@@ -2,168 +2,257 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Home AI Music Studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1019">
+  <meta name="description" content="Your private, home-network AI music library and generator.">
+  <title>Music Studio · Home AI</title>
   <link rel="stylesheet" href="/assets/studio.css">
 </head>
 <body>
-  <header class="top">
-    <div>
-      <p class="eyebrow">Home network · local model</p>
-      <h1>Home AI Music Studio</h1>
+  <a class="skip-link" href="#library-heading">Skip to music library</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="sr-only">Home AI Music Studio</span>
+        <span class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 18v-4M9 24V8M14 28V4M19 21V11M24 25V7M29 18v-4"/></svg>
+        </span>
+        <span class="brand-text"><strong>Home AI</strong><span>Music Studio</span></span>
+      </div>
+      <div class="header-right">
+        <button type="button" id="toggle-lab" class="lab-link" aria-pressed="false">Quality lab</button>
+        <span class="model-label">ACE-Step Turbo</span>
+        <span class="local-badge"><span class="signal-dot"></span> Local studio</span>
+      </div>
     </div>
-    <p class="lede">Describe a piece of music, then listen here. One generation runs at a time on this computer. Anyone on this network can start one.</p>
   </header>
-  <nav class="tabs" aria-label="Sections">
-    <button type="button" data-tab="generate" class="active" aria-selected="true">Generate</button>
-    <button type="button" data-tab="queue" aria-selected="false">Queue</button>
-    <button type="button" data-tab="library" aria-selected="false">Library</button>
-    <button type="button" data-tab="lab" aria-selected="false">Lab</button>
-  </nav>
-  <main>
-    <section id="generate" class="panel">
+
+  <main class="shell">
+    <div id="library-workspace">
+    <section class="page-head" aria-labelledby="library-heading">
+      <div>
+        <p class="overline">YOUR WORKSPACE</p>
+        <h1 id="library-heading">Your music, all in one place.</h1>
+        <p class="subhead">Create something new, listen, compare and keep what you like.</p>
+      </div>
+      <button id="toggle-compose" class="button button-primary create-trigger" type="button" aria-expanded="false" aria-controls="composer-shell">
+        <span class="button-plus" aria-hidden="true">+</span> Create music
+      </button>
+    </section>
+
+    <section id="composer-shell" class="surface composer" aria-labelledby="composer-heading" hidden>
+      <div class="surface-heading">
+        <div>
+          <p class="overline">NEW GENERATION</p>
+          <h2 id="composer-heading">Describe what you want to hear</h2>
+        </div>
+        <button id="close-compose" type="button" class="icon-button" aria-label="Close music generator">×</button>
+      </div>
       <form id="compose">
-        <label class="block" for="prompt">Music prompt</label>
-        <textarea id="prompt" name="prompt" rows="6" maxlength="4000" placeholder="Dark 1980s Miami night drive, analog bass, soft drums, no vocals" required></textarea>
-        <div class="grid">
-          <label class="field">Duration
+        <label class="field-label" for="prompt">Your description</label>
+        <textarea id="prompt" name="prompt" rows="4" maxlength="4000" placeholder="A warm, cinematic score with live drums, expressive strings and a memorable melody. Rich, natural recording, gentle build, no vocals…" required></textarea>
+        <p class="help-text">Describe the instruments, style and feeling in your own words. The model handles the musical details.</p>
+        <div class="compose-main-settings">
+          <label class="field">
+            <span>Length</span>
             <select id="duration" name="duration_seconds">
               <option value="10">10 seconds</option>
               <option value="15">15 seconds</option>
               <option value="20">20 seconds</option>
               <option value="30" selected>30 seconds</option>
               <option value="45">45 seconds</option>
-              <option value="60">60 seconds</option>
-              <option value="90">90 seconds</option>
+              <option value="60">1 minute</option>
+              <option value="90">1 min 30 sec</option>
               <option value="120">2 minutes</option>
               <option value="180">3 minutes</option>
             </select>
           </label>
-          <label class="field">Genre
+          <label class="field">
+            <span>Save under</span>
             <select id="genre" name="genre">
-              <option value="synthwave">Synthwave</option>
+              <option value="other" selected>General music</option>
               <option value="cinematic">Cinematic</option>
               <option value="ambient">Ambient</option>
-              <option value="other">Other</option>
+              <option value="synthwave">Synthwave</option>
             </select>
           </label>
-          <label class="field">BPM <span class="hint">optional</span>
-            <input id="bpm" name="bpm" inputmode="numeric" placeholder="110" min="40" max="220">
-          </label>
         </div>
-        <fieldset>
-          <legend>Mood</legend>
-          <div class="moods" id="moods"></div>
-        </fieldset>
-        <label class="check"><input id="instrumental" type="checkbox" checked> Instrumental</label>
-        <details class="advanced">
-          <summary>Advanced settings</summary>
-          <div class="grid">
-            <label class="field">Key
-              <select id="key" name="key_scale">
-                <option value="">Model chooses</option>
-                <option>C major</option>
-                <option>C minor</option>
-                <option>D major</option>
-                <option>D minor</option>
-                <option>Eb major</option>
-                <option>Eb minor</option>
-                <option>E major</option>
-                <option>E minor</option>
-                <option>F major</option>
-                <option>F minor</option>
-                <option>G major</option>
-                <option>G minor</option>
-                <option>Ab major</option>
-                <option>A major</option>
-                <option>A minor</option>
-                <option>Bb major</option>
-                <option>Bb minor</option>
-                <option>B minor</option>
-              </select>
-            </label>
-            <label class="field">Time
-              <select id="time" name="time_signature">
-                <option value="">Model chooses</option>
-                <option value="4">4/4</option>
-                <option value="3">3/4</option>
-                <option value="6">6/8</option>
-                <option value="2">2/4</option>
-              </select>
-            </label>
-            <label class="field">Seed <span class="hint">optional</span>
-              <input id="seed" name="seed" inputmode="numeric" placeholder="random">
-            </label>
+        <details class="advanced" id="advanced-settings">
+          <summary>Advanced music settings <span class="summary-hint">Optional · leave on Auto if unsure</span></summary>
+          <div class="advanced-content">
+            <div class="advanced-grid">
+              <label class="field">
+                <span>Tempo (BPM) <span class="tip" title="Beats per minute: how fast the musical pulse feels. The model can choose for you.">?</span></span>
+                <input id="bpm" name="bpm" type="number" inputmode="numeric" placeholder="Auto" min="40" max="220">
+              </label>
+              <label class="field">
+                <span>Musical key <span class="tip" title="The set of notes a song centers around. Leave it on Auto if this is unfamiliar.">?</span></span>
+                <select id="key" name="key_scale">
+                  <option value="">Auto</option>
+                  <option>C major</option><option>C minor</option>
+                  <option>D major</option><option>D minor</option>
+                  <option>Eb major</option><option>Eb minor</option>
+                  <option>E major</option><option>E minor</option>
+                  <option>F major</option><option>F minor</option>
+                  <option>G major</option><option>G minor</option>
+                  <option>Ab major</option><option>A major</option><option>A minor</option>
+                  <option>Bb major</option><option>Bb minor</option><option>B minor</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Time signature <span class="tip" title="How musical beats are grouped. 4/4 is the most common. Auto lets the model choose.">?</span></span>
+                <select id="time" name="time_signature">
+                  <option value="">Auto</option><option value="4">4/4</option>
+                  <option value="3">3/4</option><option value="6">6/8</option><option value="2">2/4</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Seed <span class="tip" title="A number used to reproduce a generation's randomness. Leave blank for a new result.">?</span></span>
+                <input id="seed" name="seed" type="number" inputmode="numeric" min="0" max="4294967295" placeholder="Random">
+              </label>
+            </div>
+            <label class="check"><input id="arrangement" type="checkbox"> Try intro / verse / chorus / outro guidance <span class="muted">(experimental)</span></label>
+            <p class="help-text">BPM means beats per minute. Key and time signature are musical notation; you don't need them for ordinary prompts. The default model is Fast Turbo. New tracks are instrumental.</p>
           </div>
-          <label class="check"><input id="arrangement" type="checkbox"> Section guidance</label>
-          <p class="note">BPM, key, and time signature go to the model as music settings. Section guidance adds intro, verse, chorus, and outro tags. A 30-second test did not make that form clearer, so leave it off unless you want to try it. Generation stays on the fast Turbo model at 8 steps. Music planning is not enabled on this computer.</p>
         </details>
-        <p class="note">Longer durations keep the machine busy for several minutes. The player stays at normal speed.</p>
-        <div class="row">
-          <button class="primary" id="generate" type="submit">Generate</button>
-          <p id="form-status" class="status" role="status"></p>
+        <div class="compose-footer">
+          <p class="help-text">One track generates at a time on your Beelink. Nothing is published automatically.</p>
+          <button id="generate-submit" class="button button-primary" type="submit"><span aria-hidden="true">✦</span> Generate track</button>
         </div>
+        <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
       </form>
     </section>
-    <section id="queue" class="panel" hidden>
-      <div id="jobs" class="stack"></div>
-    </section>
-    <section id="library" class="panel" hidden>
-      <div class="filters">
-        <input id="search" type="search" placeholder="Search prompts" aria-label="Search tracks">
-        <select id="filter-genre" aria-label="Filter by genre">
-          <option value="">All genres</option>
-          <option>synthwave</option>
-          <option>cinematic</option>
-          <option>ambient</option>
-          <option>other</option>
-        </select>
-        <label class="check"><input id="filter-favorite" type="checkbox"> Favorites</label>
+
+    <section id="activity" class="surface activity" aria-labelledby="activity-title" hidden>
+      <div class="activity-heading">
+        <div><span class="working-dot" aria-hidden="true"></span><strong id="activity-title">In progress</strong></div>
+        <span id="activity-count" class="muted"></span>
       </div>
-      <div id="tracks" class="stack"></div>
-      <article id="details" class="card details" hidden></article>
+      <div id="active-jobs" class="active-jobs"></div>
     </section>
-    <section id="lab" class="panel" hidden>
-      <h2>Quality lab</h2>
-      <p class="note">These three recordings are the Phase 5 comparison. They stay out of the library and cannot be approved from here. Use the two buttons to hear one and then the other.</p>
-      <div class="actions" id="lab-compare"></div>
-      <div id="lab-items" class="stack"></div>
-      <h2>Private reference clips</h2>
-      <p class="note">Turbo can use a reference recording for cover and timbre experiments. This form only stores a clip on this computer. Generate does not send it to the model. Upload a recording you made, or one you have the rights to use. Do not upload music you do not have rights to.</p>
-      <form id="reference-form">
-        <label class="field">WAV file, 5 to 30 seconds
-          <input id="reference-file" type="file" accept="audio/wav,.wav">
-        </label>
-        <label class="check"><input id="reference-rights" type="checkbox"> I have the rights to store this recording on this computer.</label>
-        <div class="row">
-          <button class="primary" type="submit">Save reference</button>
-          <p id="reference-status" class="status" role="status"></p>
+
+    <section class="library-area" aria-labelledby="tracks-heading">
+      <div class="library-header">
+        <div>
+          <h2 id="tracks-heading">Library <span id="tracks-count" class="count-badge">—</span></h2>
+          <p class="library-subtitle">All your generated audio in one collection</p>
         </div>
-      </form>
-      <div id="references" class="stack"></div>
+        <div class="library-actions">
+          <button type="button" id="refresh-library" class="icon-button refresh-button" aria-label="Refresh library" title="Refresh library">↻</button>
+        </div>
+      </div>
+      <div class="library-toolbar">
+        <label class="search-field" for="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 5 5"/></svg>
+          <input id="search" type="search" placeholder="Search your tracks" autocomplete="off">
+        </label>
+        <label class="select-shell"><span class="sr-only">Category</span>
+          <select id="filter-genre" aria-label="Filter tracks by category">
+            <option value="">All categories</option><option value="cinematic">Cinematic</option>
+            <option value="ambient">Ambient</option><option value="synthwave">Synthwave</option>
+            <option value="other">General</option>
+          </select>
+        </label>
+        <label class="select-shell"><span class="sr-only">Sort</span>
+          <select id="sort-tracks" aria-label="Sort tracks">
+            <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+            <option value="name">Name A–Z</option><option value="duration">Shortest first</option>
+            <option value="duration-desc">Longest first</option>
+          </select>
+        </label>
+        <label class="favorite-filter"><input id="filter-favorite" type="checkbox"><span aria-hidden="true">♡</span> Favorites</label>
+      </div>
+      <div class="table-scroller">
+        <table class="music-table">
+          <thead><tr>
+            <th scope="col" class="col-play"><span class="sr-only">Play</span></th>
+            <th scope="col">TRACK</th>
+            <th scope="col" class="col-category">CATEGORY</th>
+            <th scope="col" class="col-date">ADDED</th>
+            <th scope="col" class="col-time">LENGTH</th>
+            <th scope="col" class="col-actions"><span class="sr-only">Actions</span></th>
+          </tr></thead>
+          <tbody id="tracks"></tbody>
+        </table>
+      </div>
+      <div id="library-message" class="library-message" role="status">Loading tracks…</div>
+      <details class="history" id="history">
+        <summary>Recent generation activity <span id="history-count" class="muted"></span></summary>
+        <div id="history-jobs" class="history-list"></div>
+      </details>
+    </section>
+    </div>
+    <section id="lab" class="lab-workspace" aria-labelledby="lab-heading" hidden>
+      <header class="lab-page-head">
+        <p class="overline">CONTROLLED EXPERIMENTS</p>
+        <h1 id="lab-heading">Quality lab</h1>
+        <p class="subhead">Compare actual model recordings without adding them to your music library.</p>
+      </header>
+      <div id="lab-compare" class="lab-quickplay"></div>
+      <div id="lab-items" class="lab-grid">
+        <p class="help-text">Loading comparison tracks…</p>
+      </div>
+      <section class="surface reference-panel" aria-labelledby="references-heading">
+        <div class="reference-heading">
+          <div>
+            <p class="overline">PRIVATE RECORDINGS</p>
+            <h2 id="references-heading">Reference clips</h2>
+          </div>
+          <span class="limited-badge">Local only</span>
+        </div>
+        <p class="subhead">Store a short WAV recording for a future experiment. Uploading does <strong>not</strong> use it to generate a song.</p>
+        <form id="reference-form">
+          <label class="field-label" for="reference-file">Choose a WAV file (5–30 seconds, 16-bit, 44.1 or 48 kHz, max 12 MB)</label>
+          <input id="reference-file" class="reference-file" type="file" accept="audio/wav,.wav">
+          <label class="check reference-rights"><input id="reference-rights" type="checkbox" required> I own or have the rights to use and store this recording.</label>
+          <div class="reference-submit">
+            <button class="button" type="submit" id="save-reference">Save reference</button>
+            <span id="reference-status" class="help-text" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+        <div id="references" class="references-list"></div>
+      </section>
     </section>
   </main>
-  <aside id="now-playing" class="now" hidden>
+
+  <div id="drawer-layer" class="drawer-layer" hidden>
+    <button type="button" id="drawer-backdrop" class="drawer-backdrop" aria-label="Close track details"></button>
+    <aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title" tabindex="-1">
+      <div class="drawer-header"><span class="overline">TRACK DETAILS</span><button type="button" id="close-details" class="icon-button" aria-label="Close track details">×</button></div>
+      <div id="details"></div>
+    </aside>
+  </div>
+
+  <aside id="now-playing" class="now" aria-label="Music player">
     <div class="now-inner">
-      <button id="now-play" type="button">Play</button>
-      <div class="now-copy">
-        <button id="now-title" type="button" class="now-title">Nothing playing</button>
-        <span id="now-time" class="time">0:00 / 0:00</span>
-        <span id="now-sub" class="meta"></span>
+      <div class="player-track">
+        <div id="player-cover" class="player-cover" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 19v-6M13 25V7M19 22V10M25 19v-6"/></svg>
+        </div>
+        <div class="player-copy">
+          <button type="button" id="now-title" class="player-title" disabled>Nothing playing</button>
+          <span id="now-sub" class="player-sub">Choose a track from your library</span>
+        </div>
       </div>
-      <div id="now-kinds" class="now-kinds" hidden>
-        <button type="button" data-kind="wav">Original</button>
-        <button type="button" data-kind="clean">Cleaned</button>
+      <div class="player-center">
+        <div class="player-controls">
+          <button id="now-prev" type="button" class="player-icon" disabled aria-label="Previous track" title="Previous track">‹‹</button>
+          <button id="now-play" type="button" class="player-main-play" disabled aria-label="Play" title="Play">▶</button>
+          <button id="now-next" type="button" class="player-icon" disabled aria-label="Next track" title="Next track">››</button>
+        </div>
+        <div class="player-progress">
+          <span id="elapsed" class="player-time">0:00</span>
+          <input id="now-seek" type="range" min="0" max="1000" value="0" disabled aria-label="Playback position">
+          <span id="duration-display" class="player-time">0:00</span>
+        </div>
       </div>
-      <label class="now-speed">Speed
-        <select id="now-speed" aria-label="Playback speed">
-          <option value="1" selected>1×</option>
-          <option value="0.75">0.75×</option>
-          <option value="1.25">1.25×</option>
-          <option value="1.5">1.5×</option>
-        </select>
-      </label>
-      <input id="now-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
+      <div class="player-extra">
+        <label class="volume-control" title="Volume">
+          <span aria-hidden="true">♫</span>
+          <input id="now-volume" type="range" min="0" max="100" value="85" aria-label="Volume">
+        </label>
+        <a id="now-download" class="player-icon download-link" href="#" download aria-label="Download current track" title="Download current track" aria-disabled="true">↓</a>
+      </div>
     </div>
   </aside>
   <script src="/assets/studio.js"></script>

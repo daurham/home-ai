@@ -312,7 +312,7 @@ def _query(request) -> str:
         if not piece:
             continue
         key = piece.split("=", 1)[0]
-        if key in {"q", "genre", "mood", "approved", "favorite", "episode", "type"}:
+        if key in {"q", "genre", "mood", "approved", "favorite", "episode", "type", "limit"}:
             allowed.append(piece)
     return ("?" + "&".join(allowed)) if allowed else ""
 

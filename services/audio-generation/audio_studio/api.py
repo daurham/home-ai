@@ -151,6 +151,12 @@ class AudioAPI:
             def maybe_float(name: str):
                 raw = one(name)
                 return float(raw) if raw else None
+            try:
+                limit = int(one("limit") or 50)
+            except ValueError:
+                return 400, {"ok": False, "error": "invalid library limit"}
+            if not 1 <= limit <= 250:
+                return 400, {"ok": False, "error": "library limit must be 1 to 250"}
             assets = self.db.search_assets(
                 query=one("q"),
                 genre=one("genre"),
@@ -161,6 +167,7 @@ class AudioAPI:
                 favorite_only=one("favorite") in {"1", "true", "yes"},
                 min_duration=maybe_float("min_duration"),
                 max_duration=maybe_float("max_duration"),
+                limit=limit,
             )
             return 200, {"ok": True, "assets": [public_asset(asset) for asset in assets]}
         if method == "GET" and len(parts) == 3 and parts[:2] == ["v1", "library"]:
