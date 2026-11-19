@@ -54,7 +54,7 @@ function elapsed(value) {
 function titleOf(asset) {
   const raw = String(asset.prompt || "").replace(/\s+/g, " ").trim();
   if (!raw) return "Untitled track";
-  const intro = raw.split(/[.!?]/)[0].trim();
+  const intro = raw.split(/[.!?](?=\s|$)/)[0].trim();
   const words = intro.split(" ");
   const label = words.length > 9 ? words.slice(0, 9).join(" ") + "…" : intro;
   return label.length > 72 ? label.slice(0, 71).trim() + "…" : label;
@@ -287,7 +287,7 @@ function updatePlayer() {
   paintPlayer();
   selectedRow();
   if (enabled && "mediaSession" in navigator && "MediaMetadata" in window) {
-    navigator.mediaSession.metadata = new MediaMetadata({ title: titleOf(current), artist: "Home AI Music Studio", album: current.external_kind ? "Quality lab" : categoryOf(current) });
+    navigator.mediaSession.metadata = new MediaMetadata({ title: titleOf(current), artist: "Home AI Music Studio", album: current.external_kind === "reference" ? "Private reference" : current.external_kind ? "Quality lab" : categoryOf(current) });
     navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing";
   }
 }
@@ -326,7 +326,9 @@ function openDetails(asset) {
   document.body.style.overflow = "hidden";
   const root = $("details");
   root.replaceChildren();
-  root.append(el("h2", "drawer-title", titleOf(currentAsset)));
+  const title = el("h2", "drawer-title", titleOf(currentAsset));
+  title.id = "detail-title";
+  root.append(title);
   root.append(el("p", "drawer-meta", [categoryOf(currentAsset), formatTime(currentAsset.duration_seconds), shortDate(currentAsset.created_at)].join(" · ")));
   const primary = el("div", "drawer-actions");
   primary.append(control("▶ Play", () => selectTrack(currentAsset), "button-primary"));
@@ -529,7 +531,7 @@ function bindPlayer() {
     else { toggleLab(false); openDetails(current); }
   });
   $("now-volume").addEventListener("input", (event) => { audio.volume = Number(event.target.value) / 100; });
-  $("now-download").addEventListener("click", (event) => { if (!current) event.preventDefault(); });
+  $("now-download").addEventListener("click", (event) => { if (!current || current.external_kind) event.preventDefault(); });
   const seek = $("now-seek");
   seek.addEventListener("pointerdown", () => { seeking = true; });
   seek.addEventListener("input", () => {
