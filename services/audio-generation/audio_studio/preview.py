@@ -8,6 +8,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .db import Database
+from .quality_lab import lab_audio
+from .references import reference_audio
 from .schema import ASSET_ID
 from .studio import Studio
 
@@ -84,10 +86,22 @@ class PreviewServer:
             self._html(request, 405, "<p>This page cannot accept that request.</p>")
             return
         path = request.path.split("?", 1)[0]
+        if path.startswith("/quality-lab/") and method in {"GET", "HEAD"}:
+            self._known_audio(request, method, lab_audio(self.config, path[len("/quality-lab/"):]), "audio/wav")
+            return
+        if path.startswith("/references/") and method in {"GET", "HEAD"}:
+            self._known_audio(request, method, reference_audio(self.config, path[len("/references/"):]), "audio/wav")
+            return
         if path.startswith("/audio/") and method in {"GET", "HEAD"}:
             self._audio(request, method, path[len("/audio/"):])
             return
         self._html(request, 404, "<p>Not found.</p>")
+
+    def _known_audio(self, request, method: str, path: Path | None, content_type: str) -> None:
+        if path is None:
+            self._html(request, 404, "<p>Not found.</p>")
+            return
+        self._send_audio(request, method, path, content_type, "")
 
     def _audio(self, request, method: str, name: str) -> None:
         asset_id, kind = _audio_name(name)

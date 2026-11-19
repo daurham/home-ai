@@ -18,6 +18,7 @@
     <button type="button" data-tab="generate" class="active" aria-selected="true">Generate</button>
     <button type="button" data-tab="queue" aria-selected="false">Queue</button>
     <button type="button" data-tab="library" aria-selected="false">Library</button>
+    <button type="button" data-tab="lab" aria-selected="false">Lab</button>
   </nav>
   <main>
     <section id="generate" class="panel">
@@ -121,6 +122,25 @@
       </div>
       <div id="tracks" class="stack"></div>
       <article id="details" class="card details" hidden></article>
+    </section>
+    <section id="lab" class="panel" hidden>
+      <h2>Quality lab</h2>
+      <p class="note">These three recordings are the Phase 5 comparison. They stay out of the library and cannot be approved from here. Use the two buttons to hear one and then the other.</p>
+      <div class="actions" id="lab-compare"></div>
+      <div id="lab-items" class="stack"></div>
+      <h2>Private reference clips</h2>
+      <p class="note">Turbo can use a reference recording for cover and timbre experiments. This form only stores a clip on this computer. Generate does not send it to the model. Upload a recording you made, or one you have the rights to use. Do not upload music you do not have rights to.</p>
+      <form id="reference-form">
+        <label class="field">WAV file, 5 to 30 seconds
+          <input id="reference-file" type="file" accept="audio/wav,.wav">
+        </label>
+        <label class="check"><input id="reference-rights" type="checkbox"> I have the rights to store this recording on this computer.</label>
+        <div class="row">
+          <button class="primary" type="submit">Save reference</button>
+          <p id="reference-status" class="status" role="status"></p>
+        </div>
+      </form>
+      <div id="references" class="stack"></div>
     </section>
   </main>
   <aside id="now-playing" class="now" hidden>
