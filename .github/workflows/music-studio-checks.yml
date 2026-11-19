@@ -23,6 +23,8 @@ jobs:
           python-version: '3.11'
       - name: JavaScript syntax
         run: node --check services/audio-generation/audio_studio/studio_web/studio.js
+      - name: Install lightweight Google Drive test dependency
+        run: python -m pip install google-api-python-client
       - name: Audio service unit and integration tests (fake backend)
         env:
           PYTHONPATH: services/audio-generation
