@@ -199,7 +199,7 @@ function renderLibrary() {
 async function loadLibrary() {
   const requestId = ++libraryRequest;
   try {
-    const data = await api("/api/library");
+    const data = await api("/api/library?limit=250");
     if (requestId !== libraryRequest) return;
     libraryAssets = data.assets || [];
     if (current && current.id) {
