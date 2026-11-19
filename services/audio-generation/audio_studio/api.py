@@ -32,6 +32,13 @@ def public_job(job: dict, latest_event: str = "") -> dict:
         "provider_cost_usd": job["provider_cost_usd"],
         "latest_event": latest_event,
         "result": job["result"],
+        "seed": job.get("seed"),
+        "bpm": (job.get("request") or {}).get("bpm"),
+        "key_scale": (job.get("request") or {}).get("key_scale") or "",
+        "time_signature": (job.get("request") or {}).get("time_signature") or "",
+        "arrangement": (job.get("request") or {}).get("arrangement") or "",
+        "inference_steps": (job.get("request") or {}).get("inference_steps") or 8,
+        "planner": False,
     }
 
 

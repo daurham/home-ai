@@ -44,7 +44,9 @@ Anyone who can open that page can use this computer's generation time. The queue
 
 `python -m audio_studio.cli listening` writes MP3 copies and, when a WAV has a long silent tail, a separate trimmed listening file. Original WAVs are not rewritten. Playback at 1× is the generated file. Other speeds are the browser's playback rate: they change pitch and can sound thin. That does not repair the recording. A player that shows 0:00 before the header loads is waiting on metadata; the studio shows the stored duration immediately and requests the header up front.
 
-Generation uses ACE-Step 1.5 in the isolated environment under `AUDIO_HOME`. Keep the language model off on CPU (`ACESTEP_INIT_LLM=false` is set by the worker). Re-apply `patches/dit-only-skip-lm.patch` after updating that checkout. Do not install the CUDA wheels from upstream `uv sync` on a machine without NVIDIA.
+Generation uses ACE-Step 1.5 Turbo in the isolated environment under `AUDIO_HOME`. The worker keeps `ACESTEP_INIT_LLM=false` and eight inference steps. BPM, musical key, and time signature are sent as model fields when a request includes them. Turbo does not use a higher guidance scale or a different step count. Re-apply `patches/dit-only-skip-lm.patch` after updating that checkout so a planner experiment cannot download the 1.7B or 4B language models. Do not install the CUDA wheels from upstream `uv sync` on a machine without NVIDIA.
+
+The 0.6B planner (`acestep-5Hz-lm-0.6B`, PyTorch on CPU) was tested once at 30 seconds with the same prompt and seed as a DiT-only run. It loaded, peaked near 18 GB, and took about three minutes including model load. The worker limit is 16 GB, so that mode is not offered in the studio. Its written plan also replaced the requested orchestra with soft piano, pads, and a drum machine. Fast Turbo remains the generator.
 
 Rollback:
 

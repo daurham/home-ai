@@ -191,22 +191,7 @@ class AceStepBackend:
         raise BackendError("ACE-Step did not finish loading the DiT model before the timeout")
 
     def _release(self, job: dict) -> str:
-        payload = {
-            "prompt": job["prompt"],
-            "lyrics": "[Instrumental]",
-            "thinking": False,
-            "use_cot_caption": False,
-            "use_cot_language": False,
-            "use_format": False,
-            "audio_duration": job["duration_seconds"],
-            "audio_format": "wav",
-            "inference_steps": self.config.inference_steps,
-            "batch_size": 1,
-            "use_random_seed": job.get("seed") is None,
-            "seed": job.get("seed") if job.get("seed") is not None else -1,
-            "task_type": "text2music",
-            "model": self.config.model_name,
-        }
+        payload = release_payload(job, self.config)
         body = self._request("POST", "/release_task", payload, timeout=120)
         if body.get("code") not in (None, 200):
             raise BackendError(body.get("error") or "ACE-Step rejected the task")
@@ -273,6 +258,36 @@ class AceStepBackend:
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait(timeout=10)
+
+
+def release_payload(job: dict, config) -> dict:
+    """Build the ACE-Step request. Planning stays off; Turbo stays at its step count."""
+
+    request = job.get("request") or {}
+    payload = {
+        "prompt": job["prompt"],
+        "lyrics": request.get("lyrics") or "[Instrumental]",
+        "thinking": False,
+        "use_cot_caption": False,
+        "use_cot_language": False,
+        "use_format": False,
+        "audio_duration": job["duration_seconds"],
+        "audio_format": "wav",
+        "inference_steps": config.inference_steps,
+        "batch_size": 1,
+        "use_random_seed": job.get("seed") is None,
+        "seed": job.get("seed") if job.get("seed") is not None else -1,
+        "task_type": "text2music",
+        "model": config.model_name,
+        "vocal_language": request.get("vocal_language") or "unknown",
+    }
+    if request.get("bpm"):
+        payload["bpm"] = int(request["bpm"])
+    if request.get("key_scale"):
+        payload["key_scale"] = request["key_scale"]
+    if request.get("time_signature"):
+        payload["time_signature"] = request["time_signature"]
+    return payload
 
 
 def _tail(log_path: Path) -> str:

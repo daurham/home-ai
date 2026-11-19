@@ -142,10 +142,15 @@ class Studio:
             ]
             for job in active:
                 same_reuse = payload["reuse_asset_id"] and job["request"].get("reuse_asset_id") == payload["reuse_asset_id"]
+                same_settings = all(
+                    (job.get("request") or {}).get(key) == payload.get(key)
+                    for key in ("bpm", "key_scale", "time_signature", "arrangement", "seed")
+                )
                 same_prompt = (
                     not payload["reuse_asset_id"]
                     and job["prompt"] == payload["prompt"]
                     and float(job["duration_seconds"] or 0) == float(payload["duration_seconds"])
+                    and same_settings
                 )
                 if same_reuse or same_prompt:
                     from .api import public_job
@@ -220,12 +225,8 @@ def _studio_request(body: dict, config) -> dict:
     if not isinstance(prompt, str):
         raise ValidationError(["prompt must be a string"])
     extras = []
-    bpm = body.get("bpm")
-    if bpm not in (None, ""):
-        if isinstance(bpm, bool) or not isinstance(bpm, (int, float)) or not 40 <= float(bpm) <= 220:
-            raise ValidationError(["bpm must be between 40 and 220"])
-        extras.append(f"Target tempo: {int(bpm)} BPM.")
-    if body.get("instrumental", True) is not False:
+    instrumental = body.get("instrumental", True) is not False
+    if instrumental:
         extras.append("Instrumental only, no vocals.")
     full_prompt = " ".join(part for part in [prompt.strip(), *extras] if part)
     if not reuse and len(prompt.strip()) < 8:
@@ -249,6 +250,12 @@ def _studio_request(body: dict, config) -> dict:
         "approval": "" if reuse else "GENERATE_LIBRARY_MUSIC",
         "publishing_authorized": False,
         "save_to_library": True,
+        "bpm": None if body.get("bpm") in (None, "") else body.get("bpm"),
+        "key_scale": body.get("key_scale") or "",
+        "time_signature": body.get("time_signature") or "",
+        "arrangement": "song" if body.get("arrangement") else "",
+        "vocal_language": "unknown" if instrumental else "en",
+        "seed": None if body.get("seed") in (None, "") else body.get("seed"),
     }
     if reuse:
         payload["reuse_asset_id"] = reuse

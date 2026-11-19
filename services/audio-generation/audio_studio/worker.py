@@ -213,6 +213,12 @@ class Worker:
             "sha256": digest,
             "size_bytes": library_wav.stat().st_size,
             "created_at": utcnow(),
+            "bpm": (job.get("request") or {}).get("bpm"),
+            "musical_key": (job.get("request") or {}).get("key_scale") or "",
+            "time_signature": (job.get("request") or {}).get("time_signature") or "",
+            "arrangement": (job.get("request") or {}).get("arrangement") or "",
+            "inference_steps": (job.get("request") or {}).get("inference_steps") or self.config.inference_steps,
+            "planner": 0,
         }
         meta_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
         stored = self.db.insert_asset(record)
