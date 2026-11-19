@@ -257,7 +257,7 @@ function updatePlayer() {
   const enabled = Boolean(current);
   for (const id of ["now-play", "now-prev", "now-next", "now-seek", "now-title"]) $(id).disabled = !enabled;
   $("now-title").textContent = current ? titleOf(current) : "Nothing playing";
-  $("now-sub").textContent = current ? categoryOf(current) + " · " + (playingKind === "clean" ? "Cleaned audio" : "Original audio") : "Choose a track from your library";
+  $("now-sub").textContent = current && audio.error ? "Audio playback failed — try downloading MP3" : current ? categoryOf(current) + " · " + (playingKind === "clean" ? "Cleaned audio" : "Original audio") : "Choose a track from your library";
   $("now-play").textContent = audio.paused ? "▶" : "Ⅱ";
   $("now-play").setAttribute("aria-label", audio.paused ? "Play" : "Pause");
   $("now-play").title = audio.paused ? "Play" : "Pause";
@@ -308,7 +308,7 @@ function closeDetails() {
 }
 function openDetails(asset) {
   const currentAsset = libraryAssets.find((a) => a.id === asset.id) || asset;
-  previousFocus = document.activeElement;
+  if ($("drawer-layer").hidden) previousFocus = document.activeElement;
   $("drawer-layer").hidden = false;
   document.body.style.overflow = "hidden";
   const root = $("details");
