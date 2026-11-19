@@ -438,6 +438,83 @@ class ServiceTests(unittest.TestCase):
         self.assertTrue(local_preview_bind("192.168.1.161"))
         self.assertFalse(local_preview_bind("203.0.113.8"))
 
+    def test_quality_lab_and_references_do_not_expose_paths(self):
+        lab = self.root / "data" / "quality-lab" / "phase5"
+        write_tone(lab / "A-dit.wav", 0.2, rate=44100)
+        (lab / "A-dit.json").write_text(json.dumps({
+            "prompt": "orchestra",
+            "seed_returned": "95212137",
+            "dit_model": "acestep-v15-turbo",
+            "planner": False,
+            "generation_seconds": 84.1,
+            "peak_rss_bytes": 1000,
+            "metas": {"duration": 30},
+            "wav_path": str(lab / "A-dit.wav"),
+        }), encoding="utf-8")
+        write_tone(lab / "secret.wav", 0.2, rate=44100)
+        server = PreviewServer(self.cfg, self.db).make_server()
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            with urllib.request.urlopen(base + "/", timeout=5) as response:
+                page = response.read().decode()
+                cookie = response.headers.get("Set-Cookie", "").split(";", 1)[0].split("=", 1)[1]
+            self.assertIn(">Lab<", page)
+            with urllib.request.urlopen(base + "/api/quality-lab", timeout=5) as response:
+                body = json.loads(response.read().decode())
+            raw = json.dumps(body)
+            self.assertNotIn(str(self.root), raw)
+            self.assertNotIn("wav_path", raw)
+            self.assertNotIn("secret.wav", raw)
+            self.assertEqual(body["items"][0]["seed"], "95212137")
+            with urllib.request.urlopen(base + "/quality-lab/phase5-a", timeout=5) as response:
+                self.assertEqual(response.read(4), b"RIFF")
+            for bad in ("/quality-lab/secret.wav", "/quality-lab/../secret.wav", "/references/../../etc/passwd"):
+                with self.assertRaises(urllib.error.HTTPError) as caught:
+                    urllib.request.urlopen(base + bad, timeout=5)
+                self.assertEqual(caught.exception.code, 404)
+            tone = self.root / "upload.wav"
+            write_tone(tone, 5, rate=44100)
+            denied = urllib.request.Request(
+                base + "/api/references",
+                data=tone.read_bytes(),
+                headers={
+                    "Content-Type": "audio/wav",
+                    "Origin": base,
+                    "Cookie": "studio_csrf=" + cookie,
+                    "X-CSRF-Token": cookie,
+                },
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                urllib.request.urlopen(denied, timeout=5)
+            self.assertEqual(caught.exception.code, 400)
+            saved = urllib.request.Request(
+                base + "/api/references",
+                data=tone.read_bytes(),
+                headers={
+                    "Content-Type": "audio/wav",
+                    "Origin": base,
+                    "Cookie": "studio_csrf=" + cookie,
+                    "X-CSRF-Token": cookie,
+                    "X-Reference-Rights": "yes",
+                    "X-Reference-Name": "../secrets.wav",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(saved, timeout=5) as response:
+                record = json.loads(response.read().decode())["reference"]
+            self.assertTrue(record["id"].startswith("ref_"))
+            self.assertNotIn("/", record["original_name"])
+            self.assertFalse(record["used_for_generation"])
+            self.assertNotIn(str(self.root), json.dumps(record))
+            with urllib.request.urlopen(base + record["audio"], timeout=5) as response:
+                self.assertEqual(response.read(4), b"RIFF")
+        finally:
+            server.shutdown()
+            server.server_close()
+
 
 class _FakeRequest:
     def __init__(self, address: str, path: str):
@@ -485,6 +562,9 @@ class ReleasePayloadTests(unittest.TestCase):
         self.assertFalse(payload["thinking"])
         self.assertFalse(payload["use_cot_caption"])
         self.assertNotIn("lm_model_path", payload)
+        self.assertNotIn("reference_audio_path", payload)
+        self.assertNotIn("src_audio_path", payload)
+        self.assertEqual(payload.get("task_type", "text2music"), "text2music")
         self.assertNotIn("96", payload["prompt"])
 
 

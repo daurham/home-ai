@@ -48,6 +48,8 @@ Generation uses ACE-Step 1.5 Turbo in the isolated environment under `AUDIO_HOME
 
 The 0.6B planner (`acestep-5Hz-lm-0.6B`, PyTorch on CPU) was tested once at 30 seconds with the same prompt and seed as a DiT-only run. It loaded, peaked near 18 GB, and took about three minutes including model load. The worker limit is 16 GB, so that mode is not offered in the studio. Its written plan also replaced the requested orchestra with soft piano, pads, and a drum machine. Fast Turbo remains the generator.
 
+The Lab tab plays those three recordings from a fixed list. It does not import them into the library. A reference WAV can be stored under `AUDIO_HOME/data/references` after a rights confirmation. Generate does not send those files to ACE-Step. Turbo already supports reference audio as a cover task, but that path stays unwired until a separate listening test is authorized. The non-XL SFT and Turbo shift checkpoints are about 4.8 GB each and are not installed. SFT is a 50-step model, so it was not downloaded or run.
+
 Rollback:
 
 ```bash

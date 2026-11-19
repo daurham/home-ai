@@ -46,7 +46,7 @@ function post(path, body) {
 
 function titleOf(asset) {
   const text = (asset.prompt || "Untitled track").replace(/\s+/g, " ").trim();
-  const sentence = text.split(/[.!?]/)[0];
+  const sentence = text.split(/(?<=[.!?])\s+/)[0];
   return sentence.length > 78 ? sentence.slice(0, 77).trim() + "…" : sentence;
 }
 
@@ -83,7 +83,7 @@ function activeJob(job) {
 }
 
 function show(tab) {
-  for (const name of ["generate", "queue", "library"]) {
+  for (const name of ["generate", "queue", "library", "lab"]) {
     const section = document.getElementById(name);
     const open = name === tab;
     section.hidden = !open;
@@ -96,6 +96,7 @@ function show(tab) {
   });
   if (tab === "queue") loadJobs();
   if (tab === "library") loadLibrary();
+  if (tab === "lab") loadLab();
 }
 
 function formStatus(message, bad) {
@@ -288,10 +289,10 @@ function formatTime(seconds) {
   return Math.floor(whole / 60) + ":" + String(whole % 60).padStart(2, "0");
 }
 
-function play(asset, kind) {
+function play(asset, kind, src) {
   current = asset;
   const nextKind = kind || "wav";
-  const next = sourceFor(asset, nextKind);
+  const next = src || sourceFor(asset, nextKind);
   const url = new URL(next, location.href).href;
   playingId = asset.id;
   playingKind = nextKind;
@@ -366,6 +367,154 @@ function trackCard(asset) {
   actions.append(listen, details);
   card.append(top, meta, prompt, actions);
   return card;
+}
+
+let labItems = [];
+
+function labClip(item) {
+  return {
+    id: item.id,
+    prompt: item.title,
+    genre: item.model,
+    duration_seconds: item.duration_seconds,
+    local_clean: false,
+  };
+}
+
+function playLab(item) {
+  if (!item || !item.available) return;
+  play(labClip(item), "wav", item.audio);
+}
+
+async function loadLab() {
+  const box = document.getElementById("lab-items");
+  const compare = document.getElementById("lab-compare");
+  try {
+    const data = await api("/api/quality-lab");
+    labItems = data.items || [];
+    box.replaceChildren();
+    compare.replaceChildren();
+    const ready = labItems.filter((item) => item.available);
+    if (ready.length >= 2) {
+      const left = document.createElement("button");
+      left.type = "button";
+      left.textContent = "Play A";
+      const right = document.createElement("button");
+      right.type = "button";
+      right.textContent = "Play B";
+      left.addEventListener("click", () => playLab(ready[0]));
+      right.addEventListener("click", () => playLab(ready[1]));
+      compare.append(left, right);
+    }
+    for (const item of labItems) box.append(labCard(item));
+    loadReferences();
+  } catch (error) {
+    box.textContent = error.message;
+  }
+}
+
+function labCard(item) {
+  const card = document.createElement("article");
+  card.className = "card";
+  const heading = document.createElement("h2");
+  heading.textContent = item.title;
+  const meta = document.createElement("p");
+  meta.className = "meta";
+  const seconds = item.generation_seconds ? Math.round(item.generation_seconds) + "s generate" : "";
+  const memory = item.peak_rss_bytes ? (item.peak_rss_bytes / 1e9).toFixed(1) + " GB peak" : "";
+  meta.textContent = [item.model, item.seed ? "seed " + item.seed : "", seconds, memory].filter(Boolean).join(" · ");
+  const summary = document.createElement("p");
+  summary.textContent = item.summary;
+  card.append(heading, meta, summary);
+  if (item.available) {
+    const listen = document.createElement("button");
+    listen.type = "button";
+    listen.textContent = "Play";
+    listen.addEventListener("click", () => playLab(item));
+    card.append(listen);
+  } else {
+    const missing = document.createElement("p");
+    missing.className = "note";
+    missing.textContent = "This recording is not on this computer.";
+    card.append(missing);
+  }
+  return card;
+}
+
+async function loadReferences() {
+  const box = document.getElementById("references");
+  try {
+    const data = await api("/api/references");
+    box.replaceChildren();
+    if (!data.references.length) {
+      const empty = document.createElement("p");
+      empty.className = "note";
+      empty.textContent = "No reference clips saved.";
+      box.append(empty);
+      return;
+    }
+    for (const item of data.references) {
+      const card = document.createElement("article");
+      card.className = "card";
+      const heading = document.createElement("h2");
+      heading.textContent = item.original_name || item.id;
+      const meta = document.createElement("p");
+      meta.className = "meta";
+      meta.textContent = [item.seconds + "s", item.sample_rate + " Hz", "not sent to the model"].join(" · ");
+      const listen = document.createElement("button");
+      listen.type = "button";
+      listen.textContent = "Play";
+      listen.addEventListener("click", () => play({
+        id: item.id,
+        prompt: item.original_name || "Reference clip",
+        genre: "reference",
+        duration_seconds: item.seconds,
+        local_clean: false,
+      }, "wav", item.audio));
+      card.append(heading, meta, listen);
+      box.append(card);
+    }
+  } catch (error) {
+    box.textContent = error.message;
+  }
+}
+
+async function saveReference(event) {
+  event.preventDefault();
+  const status = document.getElementById("reference-status");
+  const file = document.getElementById("reference-file").files[0];
+  if (!file) {
+    status.textContent = "Choose a WAV file first.";
+    status.className = "status error";
+    return;
+  }
+  if (!document.getElementById("reference-rights").checked) {
+    status.textContent = "Confirm that you have the rights to store this recording.";
+    status.className = "status error";
+    return;
+  }
+  status.textContent = "Saving on this computer…";
+  status.className = "status";
+  try {
+    const bytes = await file.arrayBuffer();
+    await api("/api/references", {
+      method: "POST",
+      headers: {
+        "Content-Type": "audio/wav",
+        "X-CSRF-Token": csrf(),
+        "X-Reference-Rights": "yes",
+        "X-Reference-Name": file.name,
+      },
+      body: bytes,
+    });
+    status.textContent = "Saved. Generate will not use it.";
+    status.className = "status ok";
+    document.getElementById("reference-form").reset();
+    loadReferences();
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = "status error";
+  }
 }
 
 async function loadLibrary() {
@@ -585,6 +734,7 @@ document.querySelectorAll(".tabs button").forEach((button) => {
   button.addEventListener("click", () => show(button.dataset.tab));
 });
 document.getElementById("compose").addEventListener("submit", submitGeneration);
+document.getElementById("reference-form").addEventListener("submit", saveReference);
 document.getElementById("search").addEventListener("input", () => loadLibrary());
 document.getElementById("filter-genre").addEventListener("change", () => loadLibrary());
 document.getElementById("filter-favorite").addEventListener("change", () => loadLibrary());

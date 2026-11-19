@@ -17,6 +17,8 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .quality_lab import catalog
+from .references import ReferenceError, list_references, save_reference
 from .schema import ASSET_ID, ValidationError, validate_generation_request
 
 WEB_FILES = {"studio.css": "text/css; charset=utf-8", "studio.js": "text/javascript; charset=utf-8"}
@@ -87,6 +89,15 @@ class Studio:
             if method == "GET" and len(parts) == 3 and parts[:2] == ["api", "library"] and ASSET_ID.match(parts[2]):
                 status, payload = self._forward("GET", f"/v1/library/{parts[2]}")
                 _json(request, status, payload)
+                return
+            if method == "GET" and parts == ["api", "quality-lab"]:
+                _json(request, 200, {"ok": True, "items": catalog(self.config)})
+                return
+            if method == "GET" and parts == ["api", "references"]:
+                _json(request, 200, {"ok": True, "references": list_references(self.config)})
+                return
+            if method == "POST" and parts == ["api", "references"]:
+                self._save_reference(request)
                 return
             if method == "GET" and parts == ["api", "jobs"]:
                 status, payload = self._forward("GET", "/v1/jobs")
@@ -163,9 +174,31 @@ class Studio:
             status, response = self._forward("POST", "/v1/jobs", payload)
         _json(request, status, response)
 
-    def _guard(self, request) -> tuple[int, dict] | None:
+    def _save_reference(self, request) -> None:
         length = int(request.headers.get("Content-Length") or 0)
-        if length < 0 or length > 8192:
+        guard = self._guard(request, 12_000_000)
+        if guard:
+            _json(request, guard[0], guard[1])
+            return
+        if request.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "audio/wav":
+            _json(request, 400, {"ok": False, "error": "Send the file as audio/wav."})
+            return
+        data = request.rfile.read(length) if length else b""
+        try:
+            record = save_reference(
+                self.config,
+                data,
+                request.headers.get("X-Reference-Rights", ""),
+                request.headers.get("X-Reference-Name", ""),
+            )
+        except ReferenceError as exc:
+            _json(request, 400, {"ok": False, "error": str(exc)})
+            return
+        _json(request, 201, {"ok": True, "reference": record})
+
+    def _guard(self, request, limit: int = 8192) -> tuple[int, dict] | None:
+        length = int(request.headers.get("Content-Length") or 0)
+        if length < 0 or length > limit:
             return 400, {"ok": False, "error": "request is too large"}
         host = request.headers.get("Host", "")
         origin = request.headers.get("Origin", "")
