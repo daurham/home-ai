@@ -36,7 +36,9 @@ services/audio-generation/scripts/install-user-services.sh
 systemctl --user enable --now audio-preview.service audio-bridge.timer
 ```
 
-The API listens on `127.0.0.1:8795`. Health is `GET /health`. Every other route requires a bearer token. The preview default bind is localhost. A home-network bind is an explicit `AUDIO_PREVIEW_BIND` choice and still requires the preview password.
+The API listens on `127.0.0.1:8795`. Health is `GET /health`. Every other route requires a bearer token.
+
+The preview has no password. `GET /` lists library tracks, and `/audio/<asset_id>` streams that one WAV. It accepts only loopback and private-network clients, and it cannot create jobs, approve tracks, or read files outside the library. Set `AUDIO_PREVIEW_BIND` to `127.0.0.1`, a private address, or `0.0.0.0` for the home LAN. Do not add port 8796 to Cloudflare Tunnel or any public hostname. `AUDIO_PREVIEW_TOKEN` is unused.
 
 Generation uses ACE-Step 1.5 in the isolated environment under `AUDIO_HOME`. Keep the language model off on CPU (`ACESTEP_INIT_LLM=false` is set by the worker). Re-apply `patches/dit-only-skip-lm.patch` after updating that checkout. Do not install the CUDA wheels from upstream `uv sync` on a machine without NVIDIA.
 
@@ -50,6 +52,6 @@ That leaves the Node API, Ollama, and saved library files in place.
 
 ## Production
 
-Run the units from a dedicated checkout of `main` so unrelated working-tree edits cannot change the running code. The job API stays on localhost. Set `AUDIO_GITHUB_BRANCH` to the client branch that should be polled. The bridge only commits request, result, and activity files.
+Run the units from a dedicated checkout of `main` so unrelated working-tree edits cannot change the running code. The job API stays on localhost with its bearer token. The preview stays on the home LAN without a password. Set `AUDIO_GITHUB_BRANCH` to the client branch that should be polled. The bridge only commits request, result, and activity files.
 
 Giving a cloud renderer the WAV is not built in. Do not publish the library directory. A later free option is an outbound upload of one checksum-verified file into a short-lived private workflow artifact, or mixing on the same machine that already holds the file.

@@ -2,56 +2,54 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import html
-import time
+import ipaddress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs
 
 from .db import Database
 from .schema import ASSET_ID
 
-COOKIE = "audio_preview"
-MAX_AGE = 12 * 60 * 60
+_TRUSTED_NETWORKS = tuple(
+    ipaddress.ip_network(cidr)
+    for cidr in (
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
+    )
+)
 
 
-def _signature(token: str, expiry: str) -> str:
-    return hmac.new(token.encode(), expiry.encode(), hashlib.sha256).hexdigest()
-
-
-def _cookie(token: str) -> str:
-    expiry = str(int(time.time()) + MAX_AGE)
-    return f"{COOKIE}={expiry}.{_signature(token, expiry)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={MAX_AGE}"
-
-
-def _valid_cookie(token: str, header: str) -> bool:
-    if not token or not header:
+def trusted_preview_client(address: str) -> bool:
+    """True for loopback, link-local, and RFC1918 clients only."""
+    if address.startswith("::ffff:"):
+        address = address[7:]
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
         return False
-    for part in header.split(";"):
-        name, _, value = part.strip().partition("=")
-        if name != COOKIE or "." not in value:
-            continue
-        expiry, signature = value.split(".", 1)
-        if not expiry.isdigit() or int(expiry) < int(time.time()):
-            return False
-        expected = _signature(token, expiry)
-        if len(signature) != len(expected):
-            return False
-        return hmac.compare_digest(signature, expected)
-    return False
+    return any(ip in network for network in _TRUSTED_NETWORKS)
+
+
+def local_preview_bind(bind: str) -> bool:
+    if bind in {"0.0.0.0", "::"}:
+        return True
+    return trusted_preview_client(bind)
 
 
 class PreviewServer:
     def __init__(self, config, db: Database | None = None):
         self.config = config
         self.db = db or Database(config.db_path)
-        self.failures: dict[str, int] = {}
 
     def make_server(self) -> ThreadingHTTPServer:
-        if not self.config.preview_token:
-            raise SystemExit("AUDIO_PREVIEW_TOKEN is required")
+        if not local_preview_bind(self.config.preview_bind):
+            raise SystemExit("AUDIO_PREVIEW_BIND must be a local or private address")
         preview = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -72,16 +70,13 @@ class PreviewServer:
         return ThreadingHTTPServer((self.config.preview_bind, self.config.preview_port), Handler)
 
     def _handle(self, request, method: str) -> None:
+        if not trusted_preview_client(request.client_address[0]):
+            self._html(request, 403, "<p>This preview is only available on the local network.</p>")
+            return
+        if method not in {"GET", "HEAD"}:
+            self._html(request, 405, "<p>This preview is read-only.</p>")
+            return
         path = request.path.split("?", 1)[0]
-        if method == "POST" and path == "/login":
-            self._login(request)
-            return
-        if path == "/login" and method == "GET":
-            self._html(request, 200, self._login_page(""))
-            return
-        if not _valid_cookie(self.config.preview_token, request.headers.get("Cookie", "")):
-            self._redirect(request, "/login")
-            return
         if path in {"/", "/library"} and method == "GET":
             self._html(request, 200, self._library_page())
             return
@@ -90,33 +85,6 @@ class PreviewServer:
             self._audio(request, method, asset_id)
             return
         self._html(request, 404, "<p>Not found.</p>")
-
-    def _login(self, request) -> None:
-        address = request.client_address[0]
-        if self.failures.get(address, 0) >= 8:
-            self._html(request, 429, "<p>Too many sign-in attempts. Wait and try again.</p>")
-            return
-        length = int(request.headers.get("Content-Length") or 0)
-        if length < 0 or length > 4096:
-            self._html(request, 400, "<p>Sign-in request was rejected.</p>")
-            return
-        raw = request.rfile.read(length).decode("utf-8", "replace") if length else ""
-        password = (parse_qs(raw).get("password") or [""])[0]
-        expected = self.config.preview_token
-        valid = len(password) == len(expected) and hmac.compare_digest(password, expected)
-        if not valid:
-            self.failures[address] = self.failures.get(address, 0) + 1
-            self._html(request, 401, self._login_page("That password was not accepted."))
-            return
-        self.failures[address] = 0
-        body = b""
-        request.send_response(303)
-        request.send_header("Location", "/")
-        request.send_header("Set-Cookie", _cookie(expected))
-        request.send_header("Content-Length", "0")
-        request.send_header("Cache-Control", "no-store")
-        request.end_headers()
-        request.wfile.write(body)
 
     def _library_page(self) -> str:
         rows = []
@@ -144,20 +112,6 @@ class PreviewServer:
             "<h1>Experimental audio library</h1>"
             "<p>These tracks are local listening copies. They are not approved production deliverables.</p>"
             f"{body}"
-        )
-
-    def _login_page(self, message: str) -> str:
-        note = f"<p>{html.escape(message)}</p>" if message else ""
-        return (
-            "<!doctype html><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            "<title>Audio preview</title>"
-            "<style>body{font-family:sans-serif;margin:1.5rem;max-width:28rem}</style>"
-            "<h1>Audio preview</h1>"
-            "<p>Home network only. This page plays library tracks and cannot start a new generation.</p>"
-            f"{note}"
-            "<form method=\"post\" action=\"/login\">"
-            "<label>Password <input name=\"password\" type=\"password\" autocomplete=\"current-password\"></label>"
-            "<button type=\"submit\">Listen</button></form>"
         )
 
     def _audio(self, request, method: str, asset_id: str) -> None:
@@ -227,11 +181,7 @@ class PreviewServer:
         request.send_header("Content-Length", str(len(encoded)))
         request.send_header("Cache-Control", "no-store")
         request.send_header("X-Content-Type-Options", "nosniff")
+        if status == 405:
+            request.send_header("Allow", "GET, HEAD")
         request.end_headers()
         request.wfile.write(encoded)
-
-    def _redirect(self, request, location: str) -> None:
-        request.send_response(303)
-        request.send_header("Location", location)
-        request.send_header("Content-Length", "0")
-        request.end_headers()
