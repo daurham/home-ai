@@ -5,8 +5,10 @@ audio.preload = "metadata";
 audio.setAttribute("playsinline", "");
 let current = null;
 let jobSignature = "";
+let libraryAssets = [];
 let playingId = "";
 let playingKind = "wav";
+let seeking = false;
 let busy = false;
 
 const labels = {
@@ -55,19 +57,42 @@ function when(value) {
   return date.toLocaleString();
 }
 
-function clock(iso) {
-  if (!iso) return "";
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+function clockFrom(start, end) {
+  const seconds = Math.max(0, Math.round((end - start) / 1000));
   const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  if (hours > 0) return hours + ":" + String(minutes % 60).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0");
   return minutes + ":" + String(seconds % 60).padStart(2, "0");
+}
+
+function clock(iso) {
+  const start = Date.parse(iso);
+  if (!iso || Number.isNaN(start)) return "";
+  return clockFrom(start, Date.now());
+}
+
+function took(job) {
+  const start = Date.parse(job.started_at || job.created_at || "");
+  const end = Date.parse(job.finished_at || "");
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return "";
+  return "took " + clockFrom(start, end);
+}
+
+function activeJob(job) {
+  return job.state === "queued" || job.state === "running" || job.state === "uploading";
 }
 
 function show(tab) {
   for (const name of ["generate", "queue", "library"]) {
-    document.getElementById(name).hidden = name !== tab;
+    const section = document.getElementById(name);
+    const open = name === tab;
+    section.hidden = !open;
+    section.classList.toggle("is-open", open);
   }
   document.querySelectorAll(".tabs button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.tab === tab);
+    const open = button.dataset.tab === tab;
+    button.classList.toggle("active", open);
+    button.setAttribute("aria-selected", open ? "true" : "false");
   });
   if (tab === "queue") loadJobs();
   if (tab === "library") loadLibrary();
@@ -111,6 +136,15 @@ async function submitGeneration(event) {
       return;
     }
   }
+  const seedText = document.getElementById("seed").value.trim();
+  let seed = null;
+  if (seedText) {
+    seed = Number(seedText);
+    if (!Number.isInteger(seed) || seed < 0 || seed > 4294967295) {
+      formStatus("Seed needs to be a whole number from 0 to 4294967295.", true);
+      return;
+    }
+  }
   busy = true;
   document.getElementById("generate").disabled = true;
   formStatus("Sending to the local queue…");
@@ -120,6 +154,10 @@ async function submitGeneration(event) {
       duration_seconds: Number(document.getElementById("duration").value),
       genre: document.getElementById("genre").value,
       bpm,
+      seed,
+      key_scale: document.getElementById("key").value,
+      time_signature: document.getElementById("time").value,
+      arrangement: document.getElementById("arrangement").checked,
       instrumental: document.getElementById("instrumental").checked,
       mood: [...selectedMoods],
     });
@@ -133,42 +171,59 @@ async function submitGeneration(event) {
   }
 }
 
+function chip(text, kind) {
+  const node = document.createElement("span");
+  node.className = "chip " + (kind || "");
+  node.textContent = text;
+  return node;
+}
+
 function jobCard(job) {
   const card = document.createElement("article");
   card.className = "card";
+  const top = document.createElement("div");
+  top.className = "card-top";
   const heading = document.createElement("h2");
-  heading.textContent = labels[job.state] || job.state;
+  heading.textContent = titleOf({ prompt: job.prompt || labels[job.state] || "Audio job" });
+  top.append(heading, chip(labels[job.state] || job.state, job.state));
   const meta = document.createElement("p");
   meta.className = "meta";
-  const started = job.started_at || job.created_at;
-  meta.dataset.start = started || "";
-  meta.dataset.prefix = [job.genre, job.duration_seconds ? job.duration_seconds + "s requested" : ""].filter(Boolean).join(" · ");
-  meta.textContent = [meta.dataset.prefix, started ? "elapsed " + clock(started) : ""].filter(Boolean).join(" · ");
-  card.append(heading, meta);
+  const prefix = [job.genre, job.duration_seconds ? job.duration_seconds + "s" : ""].filter(Boolean).join(" · ");
+  const live = activeJob(job);
+  if (live) {
+    meta.dataset.live = "1";
+    meta.dataset.start = job.started_at || job.created_at || "";
+    meta.dataset.prefix = prefix;
+  }
+  const timing = live ? "elapsed " + clock(meta.dataset.start) : took(job);
+  meta.textContent = [prefix, timing].filter(Boolean).join(" · ");
+  card.append(top, meta);
   if (job.prompt) {
     const prompt = document.createElement("p");
+    prompt.className = "excerpt";
     prompt.textContent = job.prompt;
     card.append(prompt);
   }
-  const active = job.state === "queued" || job.state === "running" || job.state === "uploading";
-  const bar = document.createElement("div");
-  bar.className = "bar" + (job.state === "failed" ? " bad" : active ? "" : " done");
-  bar.append(document.createElement("span"));
-  card.append(bar);
+  if (live || job.state === "failed") {
+    const bar = document.createElement("div");
+    bar.className = "bar" + (job.state === "failed" ? " bad" : "");
+    bar.append(document.createElement("span"));
+    card.append(bar);
+  }
   const note = document.createElement("p");
   note.className = "note";
-  if (active) {
+  if (live) {
     note.textContent = job.state === "uploading"
       ? "Saving the finished audio."
-      : "The model does not report a percentage. This bar stays in motion through loading and generation.";
+      : "Loading and generating. The model does not report a percentage.";
   } else if (job.error) {
     note.className = "error";
     note.textContent = job.error;
-  } else if (job.latest_event) {
-    note.textContent = job.latest_event;
   }
-  card.append(note);
+  if (note.textContent) card.append(note);
   if (job.state === "queued" || job.state === "running") {
+    const actions = document.createElement("div");
+    actions.className = "actions";
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = "Cancel";
@@ -183,7 +238,8 @@ function jobCard(job) {
         button.disabled = false;
       }
     });
-    card.append(button);
+    actions.append(button);
+    card.append(actions);
   }
   return card;
 }
@@ -194,7 +250,7 @@ async function loadJobs() {
     const data = await api("/api/jobs");
     const signature = data.jobs.map((job) => job.job_id + ":" + job.state + ":" + (job.error || "")).join("|");
     if (signature === jobSignature) {
-      box.querySelectorAll("[data-start]").forEach((node) => {
+      box.querySelectorAll("[data-live='1']").forEach((node) => {
         if (!node.dataset.start) return;
         node.textContent = [node.dataset.prefix, "elapsed " + clock(node.dataset.start)].filter(Boolean).join(" · ");
       });
@@ -233,48 +289,82 @@ function formatTime(seconds) {
 }
 
 function play(asset, kind) {
-  const next = sourceFor(asset, kind || "wav");
+  current = asset;
+  const nextKind = kind || "wav";
+  const next = sourceFor(asset, nextKind);
+  const url = new URL(next, location.href).href;
   playingId = asset.id;
-  playingKind = kind || "wav";
-  if (audio.src !== new URL(next, location.href).href) {
+  playingKind = nextKind;
+  if (audio.src !== url) {
     audio.src = next;
     audio.playbackRate = 1;
+    const speed = document.getElementById("now-speed");
+    if (speed) speed.value = "1";
   }
-  audio.play().catch(() => {});
+  showPlayer();
+  audio.play().then(showPlayer).catch(showPlayer);
+}
+
+function showPlayer() {
+  const bar = document.getElementById("now-playing");
+  if (!current) {
+    bar.hidden = true;
+    document.body.classList.remove("has-player");
+    return;
+  }
+  bar.hidden = false;
+  document.body.classList.add("has-player");
+  document.getElementById("now-title").textContent = titleOf(current);
+  document.getElementById("now-sub").textContent = current.genre || (playingKind === "clean" ? "Cleaned" : "Original");
+  document.getElementById("now-play").textContent = audio.paused ? "Play" : "Pause";
+  const kinds = document.getElementById("now-kinds");
+  kinds.hidden = !current.local_clean;
+  kinds.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("on", button.dataset.kind === playingKind);
+  });
+  paintPlayer();
+}
+
+function paintPlayer() {
+  if (!current) return;
+  const duration = Number.isFinite(audio.duration) ? audio.duration : knownDuration(current, playingKind);
+  document.getElementById("now-time").textContent = formatTime(audio.currentTime) + " / " + formatTime(duration);
+  if (!seeking && duration > 0) {
+    document.getElementById("now-seek").value = String(Math.round((audio.currentTime / duration) * 1000));
+  }
 }
 
 function trackCard(asset) {
   const card = document.createElement("article");
   card.className = "card";
+  const top = document.createElement("div");
+  top.className = "card-top";
   const heading = document.createElement("h2");
   heading.textContent = titleOf(asset);
+  top.append(heading, chip(formatTime(knownDuration(asset, "wav")), "completed"));
   const meta = document.createElement("p");
   meta.className = "meta";
   meta.textContent = [
     asset.genre,
-    formatTime(knownDuration(asset, "wav")),
     asset.approval_status,
     asset.favorite ? "favorite" : "",
     when(asset.created_at),
   ].filter(Boolean).join(" · ");
   const prompt = document.createElement("p");
-  prompt.textContent = (asset.prompt || "").slice(0, 180);
+  prompt.className = "excerpt";
+  prompt.textContent = asset.prompt || "";
   const actions = document.createElement("div");
   actions.className = "actions";
   const listen = document.createElement("button");
   listen.type = "button";
   listen.textContent = "Play";
-  listen.addEventListener("click", () => {
-    current = asset;
-    play(asset, "wav");
-    openDetails(asset);
-  });
+  listen.addEventListener("click", () => play(asset, "wav"));
   const details = document.createElement("button");
   details.type = "button";
   details.textContent = "Details";
   details.addEventListener("click", () => openDetails(asset));
   actions.append(listen, details);
-  card.append(heading, meta, prompt, actions);
+  card.append(top, meta, prompt, actions);
   return card;
 }
 
@@ -289,6 +379,7 @@ async function loadLibrary() {
   try {
     const data = await api("/api/library?" + params.toString());
     box.replaceChildren();
+    libraryAssets = data.assets || [];
     if (!data.assets.length) {
       const empty = document.createElement("p");
       empty.className = "note";
@@ -317,7 +408,6 @@ function openDetails(asset) {
     "created " + when(asset.created_at),
   ].filter(Boolean).join(" · ");
   panel.append(heading, meta);
-  appendPlayer(panel, asset);
   const silence = document.createElement("p");
   silence.className = "note";
   if (asset.silence_start_seconds != null && asset.silence_end_seconds != null) {
@@ -344,6 +434,12 @@ function openDetails(asset) {
   settings.textContent = [
     "Model " + (asset.model || "unknown"),
     "Seed " + (asset.seed || "random"),
+    asset.bpm ? asset.bpm + " BPM" : "",
+    asset.musical_key || "",
+    asset.time_signature ? ({ "2": "2/4", "3": "3/4", "4": "4/4", "6": "6/8" }[asset.time_signature] || asset.time_signature) : "",
+    asset.arrangement === "song" ? "Section guidance" : "",
+    "8 steps",
+    "Fast Turbo",
     "Generator " + (asset.generator || ""),
     asset.duration_seconds ? "Stored duration " + asset.duration_seconds + "s" : "",
     asset.clean_duration_seconds ? "Cleaned duration " + Number(asset.clean_duration_seconds).toFixed(2) + "s" : "",
@@ -351,6 +447,32 @@ function openDetails(asset) {
     asset.size_bytes ? asset.size_bytes + " bytes" : "",
   ].filter(Boolean).join(" · ");
   panel.append(full, settings);
+  const others = libraryAssets.filter((item) => item.id !== asset.id);
+  if (others.length) {
+    const compare = document.createElement("div");
+    compare.className = "actions";
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", "Track to compare");
+    for (const item of others) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = titleOf(item);
+      select.append(option);
+    }
+    const playOther = document.createElement("button");
+    playOther.type = "button";
+    playOther.textContent = "Play comparison";
+    playOther.addEventListener("click", () => {
+      const chosen = libraryAssets.find((item) => item.id === select.value);
+      if (chosen) play(chosen, "wav");
+    });
+    const playThis = document.createElement("button");
+    playThis.type = "button";
+    playThis.textContent = "Play this track";
+    playThis.addEventListener("click", () => play(asset, "wav"));
+    compare.append(select, playOther, playThis);
+    panel.append(compare);
+  }
   const actions = document.createElement("div");
   actions.className = "actions";
   actions.append(
@@ -406,72 +528,6 @@ function linkButton(text, href) {
   return link;
 }
 
-function appendPlayer(panel, asset) {
-  const row = document.createElement("div");
-  row.className = "player-row";
-  const playButton = document.createElement("button");
-  playButton.type = "button";
-  playButton.textContent = "Play";
-  const time = document.createElement("span");
-  time.className = "meta";
-  const kind = playingId === asset.id ? playingKind : "wav";
-  time.textContent = formatTime(0) + " / " + formatTime(knownDuration(asset, kind));
-  const seek = document.createElement("input");
-  seek.type = "range";
-  seek.min = "0";
-  seek.max = "1000";
-  seek.value = "0";
-  seek.setAttribute("aria-label", "Seek");
-  const speed = document.createElement("select");
-  speed.setAttribute("aria-label", "Playback speed");
-  for (const rate of ["1", "0.75", "1.25", "1.5"]) {
-    const option = document.createElement("option");
-    option.value = rate;
-    option.textContent = rate === "1" ? "1×" : rate + "×";
-    speed.append(option);
-  }
-  speed.value = String(audio.playbackRate || 1);
-  playButton.addEventListener("click", () => {
-    if (playingId === asset.id && !audio.paused) {
-      audio.pause();
-      playButton.textContent = "Play";
-      return;
-    }
-    play(asset, playingId === asset.id ? playingKind : "wav");
-  });
-  seek.addEventListener("input", () => {
-    const duration = Number.isFinite(audio.duration) ? audio.duration : knownDuration(asset, playingKind);
-    if (duration > 0 && playingId === asset.id) audio.currentTime = duration * (Number(seek.value) / 1000);
-  });
-  speed.addEventListener("change", () => {
-    audio.playbackRate = Number(speed.value);
-  });
-  if (asset.local_clean) {
-    const original = document.createElement("button");
-    original.type = "button";
-    original.textContent = "Original";
-    const cleaned = document.createElement("button");
-    cleaned.type = "button";
-    cleaned.textContent = "Cleaned";
-    original.addEventListener("click", () => { play(asset, "wav"); time.textContent = formatTime(audio.currentTime) + " / " + formatTime(knownDuration(asset, "wav")); });
-    cleaned.addEventListener("click", () => { play(asset, "clean"); time.textContent = formatTime(0) + " / " + formatTime(knownDuration(asset, "clean")); });
-    row.append(original, cleaned);
-  }
-  audio.ontimeupdate = () => {
-    if (playingId !== asset.id) return;
-    const duration = Number.isFinite(audio.duration) ? audio.duration : knownDuration(asset, playingKind);
-    time.textContent = formatTime(audio.currentTime) + " / " + formatTime(duration);
-    if (duration > 0) seek.value = String(Math.round((audio.currentTime / duration) * 1000));
-    playButton.textContent = audio.paused ? "Play" : "Pause";
-  };
-  audio.onloadedmetadata = () => {
-    if (playingId !== asset.id) return;
-    time.textContent = formatTime(audio.currentTime) + " / " + formatTime(audio.duration);
-  };
-  row.append(playButton, speed, time);
-  panel.append(row, seek);
-}
-
 async function changeAsset(asset, suffix, body) {
   try {
     const data = await post("/api/library/" + asset.id + suffix, body);
@@ -486,6 +542,45 @@ async function changeAsset(asset, suffix, body) {
   }
 }
 
+function bindPlayer() {
+  document.getElementById("now-play").addEventListener("click", () => {
+    if (!current) return;
+    if (audio.paused) play(current, playingKind);
+    else {
+      audio.pause();
+      showPlayer();
+    }
+  });
+  document.getElementById("now-title").addEventListener("click", () => {
+    if (!current) return;
+    show("library");
+    openDetails(current);
+  });
+  document.getElementById("now-kinds").addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button || !current) return;
+    play(current, button.dataset.kind);
+  });
+  document.getElementById("now-speed").addEventListener("change", (event) => {
+    audio.playbackRate = Number(event.target.value);
+  });
+  const seek = document.getElementById("now-seek");
+  seek.addEventListener("pointerdown", () => { seeking = true; });
+  seek.addEventListener("input", () => {
+    seeking = true;
+    const duration = Number.isFinite(audio.duration) ? audio.duration : knownDuration(current || {}, playingKind);
+    if (duration > 0) audio.currentTime = duration * (Number(seek.value) / 1000);
+    paintPlayer();
+  });
+  seek.addEventListener("change", () => { seeking = false; });
+  seek.addEventListener("pointerup", () => { seeking = false; });
+  audio.ontimeupdate = paintPlayer;
+  audio.onloadedmetadata = paintPlayer;
+  audio.onplay = showPlayer;
+  audio.onpause = showPlayer;
+  audio.onended = showPlayer;
+}
+
 document.querySelectorAll(".tabs button").forEach((button) => {
   button.addEventListener("click", () => show(button.dataset.tab));
 });
@@ -494,6 +589,7 @@ document.getElementById("search").addEventListener("input", () => loadLibrary())
 document.getElementById("filter-genre").addEventListener("change", () => loadLibrary());
 document.getElementById("filter-favorite").addEventListener("change", () => loadLibrary());
 buildMoods();
+bindPlayer();
 loadLibrary();
 setInterval(() => {
   if (!document.getElementById("queue").hidden) loadJobs();

@@ -107,6 +107,12 @@ class Database:
             "favorite": "INTEGER NOT NULL DEFAULT 0",
             "listening_checked": "INTEGER NOT NULL DEFAULT 0",
             "listening_note": "TEXT",
+            "bpm": "INTEGER",
+            "musical_key": "TEXT",
+            "time_signature": "TEXT",
+            "arrangement": "TEXT",
+            "inference_steps": "INTEGER",
+            "planner": "INTEGER NOT NULL DEFAULT 0",
         }
         for name, declaration in additions.items():
             if name not in present:
@@ -366,12 +372,14 @@ class Database:
                   id, job_id, type, episode, prompt, genre, mood, tags, duration_seconds,
                   seed, generator, model, license_note, approval_status, wav_path, mp3_path,
                   sha256, size_bytes, drive_file_id, drive_url, drive_folder,
-                  metadata_drive_file_id, metadata_drive_url, created_at
+                  metadata_drive_file_id, metadata_drive_url, created_at,
+                  bpm, musical_key, time_signature, arrangement, inference_steps, planner
                 ) VALUES (
                   :id, :job_id, :type, :episode, :prompt, :genre, :mood, :tags, :duration_seconds,
                   :seed, :generator, :model, :license_note, :approval_status, :wav_path, :mp3_path,
                   :sha256, :size_bytes, :drive_file_id, :drive_url, :drive_folder,
-                  :metadata_drive_file_id, :metadata_drive_url, :created_at
+                  :metadata_drive_file_id, :metadata_drive_url, :created_at,
+                  :bpm, :musical_key, :time_signature, :arrangement, :inference_steps, :planner
                 )
                 """,
                 {
@@ -385,6 +393,12 @@ class Database:
                     "metadata_drive_file_id": asset.get("metadata_drive_file_id"),
                     "metadata_drive_url": asset.get("metadata_drive_url"),
                     "created_at": asset.get("created_at") or utcnow(),
+                    "bpm": asset.get("bpm"),
+                    "musical_key": asset.get("musical_key") or "",
+                    "time_signature": asset.get("time_signature") or "",
+                    "arrangement": asset.get("arrangement") or "",
+                    "inference_steps": asset.get("inference_steps") or 8,
+                    "planner": 1 if asset.get("planner") else 0,
                     **{k: asset[k] for k in (
                         "id", "job_id", "type", "episode", "prompt", "genre",
                         "duration_seconds", "seed", "generator", "model", "license_note",

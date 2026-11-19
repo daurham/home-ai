@@ -154,13 +154,21 @@ class StudioTests(unittest.TestCase):
             "genre": "ambient",
             "mood": ["calm"],
             "bpm": 90,
+            "key_scale": "D minor",
+            "time_signature": "4",
+            "seed": 95212137,
             "instrumental": True,
         }
         with self._post(opener, cookie, "/api/jobs", body) as response:
             payload = json.loads(response.read().decode())
             self.assertEqual(response.status, 202)
         self.assertEqual(payload["job"]["state"], "queued")
-        self.assertIn("Target tempo: 90 BPM.", payload["job"]["prompt"])
+        self.assertNotIn("Target tempo", payload["job"]["prompt"])
+        self.assertEqual(payload["job"]["bpm"], 90)
+        self.assertEqual(payload["job"]["key_scale"], "D minor")
+        self.assertEqual(payload["job"]["time_signature"], "4")
+        self.assertEqual(payload["job"]["seed"], 95212137)
+        self.assertFalse(payload["job"]["planner"])
         self.assertIn("Instrumental only, no vocals.", payload["job"]["prompt"])
         self.assertNotIn(self.cfg.api_token, json.dumps(payload))
         with self.assertRaises(urllib.error.HTTPError) as caught:

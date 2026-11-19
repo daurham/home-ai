@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from audio_studio.api import AudioAPI
+from audio_studio.backends import release_payload
 from audio_studio.bridge import sync_inbox
 from audio_studio.db import Database
 from audio_studio.drive import DriveClient, DriveUploadError
@@ -458,6 +459,33 @@ class _FakeRequest:
 
     def write(self, data: bytes) -> None:
         self._body.extend(data)
+
+
+class ReleasePayloadTests(unittest.TestCase):
+    def test_music_settings_are_model_fields_and_planning_stays_off(self):
+        payload = release_payload(
+            {
+                "prompt": "A live orchestra",
+                "duration_seconds": 30,
+                "seed": 95212137,
+                "request": {
+                    "bpm": 96,
+                    "key_scale": "D minor",
+                    "time_signature": "4",
+                    "lyrics": "[Instrumental]",
+                    "vocal_language": "unknown",
+                },
+            },
+            SimpleNamespace(inference_steps=8, model_name="acestep-v15-turbo"),
+        )
+        self.assertEqual(payload["bpm"], 96)
+        self.assertEqual(payload["key_scale"], "D minor")
+        self.assertEqual(payload["time_signature"], "4")
+        self.assertEqual(payload["inference_steps"], 8)
+        self.assertFalse(payload["thinking"])
+        self.assertFalse(payload["use_cot_caption"])
+        self.assertNotIn("lm_model_path", payload)
+        self.assertNotIn("96", payload["prompt"])
 
 
 def _git(cwd: Path, *args: str) -> None:

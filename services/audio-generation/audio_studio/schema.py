@@ -9,6 +9,13 @@ REQUEST_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 EPISODE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ASSET_ID = re.compile(r"^ast_[a-f0-9]{32}$")
 GENRES = {"synthwave", "cinematic", "ambient", "other"}
+KEYS = {
+    "C major", "C minor", "D major", "D minor", "Eb major", "Eb minor",
+    "E major", "E minor", "F major", "F minor", "G major", "G minor",
+    "Ab major", "A major", "A minor", "Bb major", "Bb minor", "B minor",
+}
+TIMES = {"2", "3", "4", "6"}
+SONG_LYRICS = "[Intro]\n\n[Verse]\n\n[Chorus]\n\n[Outro]\n"
 
 
 class ValidationError(ValueError):
@@ -89,8 +96,34 @@ def validate_generation_request(body: dict[str, Any], config) -> dict[str, Any]:
             "sfx generation is not installed; import a licensed file or pass reuse_asset_id"
         )
     seed = body.get("seed", None)
-    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 or seed > 2**31 - 1):
-        errors.append("seed must be a non-negative 31-bit integer or null")
+    if seed is not None and (isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 or seed > 2**32 - 1):
+        errors.append("seed must be a non-negative 32-bit integer or null")
+    bpm = body.get("bpm", None)
+    if bpm in ("",):
+        bpm = None
+    if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or bpm < 40 or bpm > 220):
+        errors.append("bpm must be a whole number from 40 to 220")
+    key_scale = body.get("key_scale") or ""
+    if not isinstance(key_scale, str) or (key_scale and key_scale not in KEYS):
+        errors.append("key_scale is not a supported key")
+        key_scale = ""
+    time_signature = body.get("time_signature") or ""
+    if time_signature is None:
+        time_signature = ""
+    if not isinstance(time_signature, str) or (time_signature and time_signature not in TIMES):
+        errors.append("time_signature must be 2, 3, 4, or 6")
+        time_signature = ""
+    arrangement = body.get("arrangement") or ""
+    if arrangement not in {"", "song"}:
+        errors.append("arrangement must be empty or song")
+        arrangement = ""
+    vocal_language = body.get("vocal_language") or "unknown"
+    if vocal_language not in {"unknown", "en"}:
+        errors.append("vocal_language must be unknown or en")
+        vocal_language = "unknown"
+    lyrics = SONG_LYRICS if arrangement == "song" else "[Instrumental]"
+    if vocal_language == "en" and arrangement != "song":
+        lyrics = ""
     mood = _string_list(body.get("mood"), "mood", errors)
     tags = _string_list(body.get("tags"), "tags", errors)
     if errors:
@@ -107,6 +140,14 @@ def validate_generation_request(body: dict[str, Any], config) -> dict[str, Any]:
         "mood": mood,
         "tags": tags,
         "seed": seed,
+        "bpm": bpm,
+        "key_scale": key_scale,
+        "time_signature": time_signature,
+        "arrangement": arrangement,
+        "lyrics": lyrics,
+        "vocal_language": vocal_language,
+        "inference_steps": 8,
+        "planner": False,
         "reuse_asset_id": reuse,
         "approval": approval if isinstance(approval, str) else "",
         "publishing_authorized": False,
