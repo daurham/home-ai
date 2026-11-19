@@ -11,13 +11,16 @@ from .db import Database
 from .schema import ValidationError, validate_generation_request
 
 
-def public_job(job: dict) -> dict:
+def public_job(job: dict, latest_event: str = "") -> dict:
     return {
         "job_id": job["id"],
         "request_id": job["request_id"],
         "type": job["type"],
         "state": job["state"],
         "episode": job["episode"],
+        "prompt": job.get("prompt") or "",
+        "duration_seconds": job.get("duration_seconds"),
+        "genre": job.get("genre") or "",
         "asset_id": job["asset_id"],
         "error": job["error"],
         "attempts": job["attempts"],
@@ -27,16 +30,20 @@ def public_job(job: dict) -> dict:
         "started_at": job["started_at"],
         "finished_at": job["finished_at"],
         "provider_cost_usd": job["provider_cost_usd"],
+        "latest_event": latest_event,
         "result": job["result"],
     }
 
 
 def public_asset(asset: dict) -> dict:
-    hidden = {"wav_path", "mp3_path"}
-    return {key: value for key, value in asset.items() if key not in hidden} | {
-        "local_wav": bool(asset.get("wav_path")),
-        "local_mp3": bool(asset.get("mp3_path")),
-    }
+    hidden = {"wav_path", "mp3_path", "clean_wav_path"}
+    data = {key: value for key, value in asset.items() if key not in hidden}
+    data["local_wav"] = bool(asset.get("wav_path"))
+    data["local_mp3"] = bool(asset.get("mp3_path"))
+    data["local_clean"] = bool(asset.get("clean_wav_path"))
+    data["favorite"] = bool(asset.get("favorite"))
+    data["fade_applied"] = bool(asset.get("fade_applied"))
+    return data
 
 
 class AudioAPI:
@@ -112,12 +119,16 @@ class AudioAPI:
                 "queued", "running", "uploading", "local_ready", "completed", "failed", "cancelled"
             }:
                 return 400, {"ok": False, "error": "unknown state"}
-            return 200, {"ok": True, "jobs": [public_job(job) for job in self.db.list_jobs(state)]}
+            jobs = self.db.list_jobs(state)
+            return 200, {
+                "ok": True,
+                "jobs": [public_job(job, self.db.latest_event(job["id"])) for job in jobs],
+            }
         if method == "GET" and len(parts) == 3 and parts[:2] == ["v1", "jobs"]:
             job = self.db.job(parts[2])
             if not job:
                 return 404, {"ok": False, "error": "job not found"}
-            return 200, {"ok": True, "job": public_job(job)}
+            return 200, {"ok": True, "job": public_job(job, self.db.latest_event(job["id"]))}
         if method == "POST" and len(parts) == 4 and parts[:2] == ["v1", "jobs"] and parts[3] == "cancel":
             current = self.db.job(parts[2])
             if not current:
@@ -125,7 +136,7 @@ class AudioAPI:
             if current["state"] in {"completed", "local_ready", "failed", "cancelled"}:
                 return 409, {"ok": False, "error": "job already finished", "job": public_job(current)}
             job = self.db.request_cancel(parts[2])
-            return 200, {"ok": True, "job": public_job(job)}
+            return 200, {"ok": True, "job": public_job(job, self.db.latest_event(job["id"]))}
         if method == "GET" and parts == ["v1", "library"]:
             def one(name: str):
                 values = query.get(name) or []
@@ -140,6 +151,7 @@ class AudioAPI:
                 episode=one("episode"),
                 kind=one("type"),
                 approved_only=one("approved") in {"1", "true", "yes"},
+                favorite_only=one("favorite") in {"1", "true", "yes"},
                 min_duration=maybe_float("min_duration"),
                 max_duration=maybe_float("max_duration"),
             )
@@ -152,6 +164,14 @@ class AudioAPI:
         if method == "POST" and len(parts) == 4 and parts[:2] == ["v1", "library"] and parts[3] == "approval":
             body = self._body(request)
             asset = self.db.set_approval(parts[2], bool(body.get("approved")))
+            if not asset:
+                return 404, {"ok": False, "error": "asset not found"}
+            return 200, {"ok": True, "asset": public_asset(asset)}
+        if method == "POST" and len(parts) == 4 and parts[:2] == ["v1", "library"] and parts[3] == "favorite":
+            body = self._body(request)
+            if not isinstance(body.get("favorite"), bool):
+                return 400, {"ok": False, "error": "favorite must be true or false"}
+            asset = self.db.set_favorite(parts[2], body["favorite"])
             if not asset:
                 return 404, {"ok": False, "error": "asset not found"}
             return 200, {"ok": True, "asset": public_asset(asset)}
@@ -257,5 +277,5 @@ class AudioAPI:
             job = self.db.job(job["id"])
         return (202 if created and job["state"] == "queued" else 200), {
             "ok": True,
-            "job": public_job(job),
+            "job": public_job(job, self.db.latest_event(job["id"])),
         }

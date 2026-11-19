@@ -1,14 +1,15 @@
-"""Read-only listening page. It cannot submit jobs or read arbitrary files."""
+"""Home AI Music Studio page. Generation stays on the localhost API."""
 
 from __future__ import annotations
 
-import html
 import ipaddress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from .db import Database
 from .schema import ASSET_ID
+from .studio import Studio
 
 _TRUSTED_NETWORKS = tuple(
     ipaddress.ip_network(cidr)
@@ -46,6 +47,7 @@ class PreviewServer:
     def __init__(self, config, db: Database | None = None):
         self.config = config
         self.db = db or Database(config.db_path)
+        self.studio = Studio(config, self.db)
 
     def make_server(self) -> ThreadingHTTPServer:
         if not local_preview_bind(self.config.preview_bind):
@@ -73,63 +75,53 @@ class PreviewServer:
         if not trusted_preview_client(request.client_address[0]):
             self._html(request, 403, "<p>This preview is only available on the local network.</p>")
             return
+        if method not in {"GET", "HEAD", "POST"}:
+            self._html(request, 405, "<p>Method not allowed.</p>")
+            return
+        if self.studio.handle(request, method):
+            return
         if method not in {"GET", "HEAD"}:
-            self._html(request, 405, "<p>This preview is read-only.</p>")
+            self._html(request, 405, "<p>This page cannot accept that request.</p>")
             return
         path = request.path.split("?", 1)[0]
-        if path in {"/", "/library"} and method == "GET":
-            self._html(request, 200, self._library_page())
-            return
         if path.startswith("/audio/") and method in {"GET", "HEAD"}:
-            asset_id = path[len("/audio/"):]
-            self._audio(request, method, asset_id)
+            self._audio(request, method, path[len("/audio/"):])
             return
         self._html(request, 404, "<p>Not found.</p>")
 
-    def _library_page(self) -> str:
-        rows = []
-        for asset in self.db.search_assets(limit=50):
-            if not ASSET_ID.match(asset["id"]):
-                continue
-            title = html.escape(asset["id"])
-            prompt = html.escape((asset.get("prompt") or "")[:180])
-            genre = html.escape(asset.get("genre") or "")
-            episode = html.escape(asset.get("episode") or "")
-            duration = asset.get("duration_seconds") or 0
-            rows.append(
-                "<article>"
-                f"<h2>{title}</h2>"
-                f"<p>{genre} · {episode} · {duration:.1f}s · {html.escape(asset.get('approval_status') or '')}</p>"
-                f"<p>{prompt}</p>"
-                f"<audio controls preload=\"none\" src=\"/audio/{title}\"></audio>"
-                "</article>"
-            )
-        body = "\n".join(rows) or "<p>No tracks yet.</p>"
-        return (
-            "<!doctype html><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            "<title>Audio library</title>"
-            "<style>body{font-family:sans-serif;margin:1.5rem;max-width:40rem}article{margin:0 0 1.5rem}</style>"
-            "<h1>Experimental audio library</h1>"
-            "<p>These tracks are local listening copies. They are not approved production deliverables.</p>"
-            f"{body}"
-        )
-
-    def _audio(self, request, method: str, asset_id: str) -> None:
-        if not ASSET_ID.match(asset_id):
+    def _audio(self, request, method: str, name: str) -> None:
+        asset_id, kind = _audio_name(name)
+        if not asset_id:
             self._html(request, 404, "<p>Not found.</p>")
             return
         asset = self.db.asset(asset_id)
-        if not asset or not asset.get("wav_path"):
+        if not asset:
             self._html(request, 404, "<p>Not found.</p>")
             return
-        path = Path(asset["wav_path"]).resolve()
         library = self.config.library_dir.resolve()
-        if path.parent != library or path.name != f"{asset_id}.wav" or not path.is_file():
+        if kind == "wav":
+            path = Path(asset.get("wav_path") or "")
+            expected = f"{asset_id}.wav"
+            content_type = "audio/wav"
+        elif kind == "clean":
+            path = Path(asset.get("clean_wav_path") or "")
+            expected = f"{asset_id}.clean.wav"
+            content_type = "audio/wav"
+        else:
+            path = Path(asset.get("mp3_path") or "")
+            expected = f"{asset_id}.mp3"
+            content_type = "audio/mpeg"
+        if not path:
             self._html(request, 404, "<p>Not found.</p>")
             return
-        self._send_wav(request, method, path)
+        resolved = path.resolve()
+        if resolved.parent != library or resolved.name != expected or not resolved.is_file():
+            self._html(request, 404, "<p>Not found.</p>")
+            return
+        download = "download" in parse_qs(urlparse(request.path).query)
+        self._send_audio(request, method, resolved, content_type, expected if download else "")
 
-    def _send_wav(self, request, method: str, path: Path) -> None:
+    def _send_audio(self, request, method: str, path: Path, content_type: str, download_name: str) -> None:
         size = path.stat().st_size
         start, end = 0, size - 1
         status = 200
@@ -155,10 +147,12 @@ class PreviewServer:
             status = 206
         length = end - start + 1
         request.send_response(status)
-        request.send_header("Content-Type", "audio/wav")
+        request.send_header("Content-Type", content_type)
         request.send_header("Accept-Ranges", "bytes")
         request.send_header("Content-Length", str(length))
         request.send_header("Cache-Control", "private, no-store")
+        if download_name:
+            request.send_header("Content-Disposition", f'attachment; filename="{download_name}"')
         if status == 206:
             request.send_header("Content-Range", f"bytes {start}-{end}/{size}")
         request.end_headers()
@@ -185,3 +179,21 @@ class PreviewServer:
             request.send_header("Allow", "GET, HEAD")
         request.end_headers()
         request.wfile.write(encoded)
+
+
+def _audio_name(name: str) -> tuple[str, str]:
+    if name.endswith(".clean.wav"):
+        asset_id = name[: -len(".clean.wav")]
+        kind = "clean"
+    elif name.endswith(".mp3"):
+        asset_id = name[: -len(".mp3")]
+        kind = "mp3"
+    elif name.endswith(".wav"):
+        asset_id = name[: -len(".wav")]
+        kind = "wav"
+    else:
+        asset_id = name
+        kind = "wav"
+    if not ASSET_ID.match(asset_id):
+        return "", ""
+    return asset_id, kind

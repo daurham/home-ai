@@ -11,6 +11,7 @@ from pathlib import Path
 from .backends import AceStepBackend, BackendError, Cancelled, FakeBackend
 from .db import Database, utcnow
 from .drive import DriveClient, DriveNotConfigured, DriveUploadError
+from .cleanup import asset_updates, prepare_listening_copy
 from .media import find_ffmpeg, sha256_file, transcode_mp3, wav_duration
 from .schema import genre_folder
 
@@ -215,8 +216,18 @@ class Worker:
         }
         meta_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
         stored = self.db.insert_asset(record)
+        self._attach_listening_copy(stored, library_wav)
         self.db.mark(job["id"], asset_id=asset_id, result={**result, "wav_path": str(library_wav)})
-        return stored
+        return self.db.asset(asset_id)
+
+    def _attach_listening_copy(self, asset: dict, library_wav: Path) -> None:
+        try:
+            report = prepare_listening_copy(library_wav, self.config.library_dir, asset["id"])
+        except Exception as exc:
+            self.db.add_event(asset["job_id"], "error", f"listening copy skipped: {exc}"[:240])
+            return
+        self.db.update_asset(asset["id"], **asset_updates(report))
+        self.db.add_event(asset["job_id"], "info", report["reason"][:240])
 
     def _push(self, job: dict, asset: dict) -> dict:
         segments = genre_folder(asset["genre"], asset["type"])

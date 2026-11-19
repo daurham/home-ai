@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home AI Music Studio</title>
+  <link rel="stylesheet" href="/assets/studio.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="eyebrow">Home network · local model</p>
+      <h1>Home AI Music Studio</h1>
+    </div>
+    <p class="lede">Describe a piece of music, then listen here. One generation runs at a time on this computer. Anyone on this network can start one.</p>
+  </header>
+  <nav class="tabs" aria-label="Sections">
+    <button type="button" data-tab="generate" class="active">Generate</button>
+    <button type="button" data-tab="queue">Queue</button>
+    <button type="button" data-tab="library">Library</button>
+  </nav>
+  <main>
+    <section id="generate" class="panel">
+      <form id="compose">
+        <label class="block" for="prompt">Music prompt</label>
+        <textarea id="prompt" name="prompt" rows="6" maxlength="4000" placeholder="Dark 1980s Miami night drive, analog bass, soft drums, no vocals" required></textarea>
+        <div class="grid">
+          <label>Duration
+            <select id="duration" name="duration_seconds">
+              <option value="10">10 seconds</option>
+              <option value="15">15 seconds</option>
+              <option value="20">20 seconds</option>
+              <option value="30" selected>30 seconds</option>
+              <option value="45">45 seconds</option>
+              <option value="60">60 seconds</option>
+              <option value="90">90 seconds</option>
+              <option value="120">2 minutes</option>
+              <option value="180">3 minutes</option>
+            </select>
+          </label>
+          <label>Genre
+            <select id="genre" name="genre">
+              <option value="synthwave">Synthwave</option>
+              <option value="cinematic">Cinematic</option>
+              <option value="ambient">Ambient</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>BPM <span class="hint">optional</span>
+            <input id="bpm" name="bpm" inputmode="numeric" placeholder="110" min="40" max="220">
+          </label>
+        </div>
+        <fieldset>
+          <legend>Mood</legend>
+          <div class="moods" id="moods"></div>
+        </fieldset>
+        <label class="check"><input id="instrumental" type="checkbox" checked> Instrumental</label>
+        <p class="note">BPM and the instrumental setting are added to the prompt the model actually receives. Longer durations keep the machine busy for several minutes. The player stays at normal speed.</p>
+        <div class="row">
+          <button class="primary" id="generate" type="submit">Generate</button>
+          <p id="form-status" class="status" role="status"></p>
+        </div>
+      </form>
+    </section>
+    <section id="queue" class="panel" hidden>
+      <div id="jobs" class="stack"></div>
+    </section>
+    <section id="library" class="panel" hidden>
+      <div class="filters">
+        <input id="search" type="search" placeholder="Search prompts" aria-label="Search tracks">
+        <select id="filter-genre" aria-label="Filter by genre">
+          <option value="">All genres</option>
+          <option>synthwave</option>
+          <option>cinematic</option>
+          <option>ambient</option>
+          <option>other</option>
+        </select>
+        <label class="check"><input id="filter-favorite" type="checkbox"> Favorites</label>
+      </div>
+      <div id="tracks" class="stack"></div>
+      <article id="details" class="card details" hidden></article>
+    </section>
+  </main>
+  <script src="/assets/studio.js"></script>
+</body>
+</html>

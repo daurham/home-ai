@@ -7,6 +7,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 from .api import AudioAPI
 from .bridge import sync_inbox
@@ -14,6 +15,8 @@ from .config import load_config
 from .db import Database
 from .drive import run_auth_flow
 from .github_sync import sync_remote
+from .cleanup import asset_updates, ensure_mp3, prepare_listening_copy
+from .media import find_ffmpeg
 from .preview import PreviewServer
 from .worker import Worker
 
@@ -35,6 +38,25 @@ def _call(config, method: str, path: str, payload: dict | None = None) -> dict:
     except urllib.error.HTTPError as exc:
         print(exc.read().decode())
         raise SystemExit(exc.code) from exc
+
+
+def cmd_listening(config) -> None:
+    db = Database(config.db_path)
+    ffmpeg = find_ffmpeg(config.ffmpeg)
+    notes = []
+    for asset in db.search_assets(limit=500):
+        wav = Path(asset.get("wav_path") or "")
+        if not wav.is_file():
+            continue
+        if not asset.get("listening_checked"):
+            report = prepare_listening_copy(wav, config.library_dir, asset["id"])
+            db.update_asset(asset["id"], **asset_updates(report))
+            notes.append(asset["id"] + ": " + report["reason"])
+        mp3 = config.library_dir / f"{asset['id']}.mp3"
+        if ffmpeg and not asset.get("mp3_path") and ensure_mp3(wav, mp3, ffmpeg):
+            db.update_asset(asset["id"], mp3_path=str(mp3))
+            notes.append(asset["id"] + ": mp3")
+    print(json.dumps({"updated": notes, "ffmpeg": bool(ffmpeg)}, indent=2))
 
 
 def cmd_api(config) -> None:
@@ -97,6 +119,7 @@ def main(argv: list[str] | None = None) -> None:
     cancel = sub.add_parser("cancel")
     cancel.add_argument("job_id")
     sub.add_parser("health")
+    sub.add_parser("listening")
     args = parser.parse_args(argv)
     config = load_config()
     if args.command == "api":
@@ -109,6 +132,8 @@ def main(argv: list[str] | None = None) -> None:
         run_auth_flow(config)
     elif args.command == "bridge":
         cmd_bridge(config, args)
+    elif args.command == "listening":
+        cmd_listening(config)
     elif args.command == "health":
         print(json.dumps(_call(config, "GET", "/v1/health"), indent=2))
     elif args.command == "status":
